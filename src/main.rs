@@ -1,7 +1,9 @@
 mod app;
 mod beancount;
 mod cli;
+mod error;
 mod tui;
+mod utils;
 
 use clap::Parser;
 use color_eyre::Result;
