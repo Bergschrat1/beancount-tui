@@ -1,26 +1,22 @@
-use beancount_parser::{Directive, DirectiveContent};
-use color_eyre::{eyre::Context, Result};
+use beancount_parser::Directive;
+use color_eyre::{eyre::Context, owo_colors::OwoColorize, Result};
 use ratatui::{
     buffer::Buffer,
     crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
-    layout::{
-        Constraint::{Fill, Length, Min},
-        Layout, Rect,
-    },
-    style::Stylize,
+    layout::Rect,
+    style::{Style, Stylize},
     symbols::border,
-    text::{Line, Text},
+    text::{Line, Span, Text},
     widgets::{Block, Borders, Paragraph, Widget},
     Frame,
 };
 use rust_decimal::Decimal;
-use tui_textarea::{Input, Key, TextArea};
 
 use crate::{
     beancount::{filter_transactions, parse_beancount_file, TransactionTui},
     cli::Args,
-    tui,
-    utils::format_date,
+    terminal,
+    utils::format_posting_line,
 };
 
 #[derive(Debug, Default)]
@@ -50,7 +46,7 @@ pub struct App {
 
 impl App {
     /// runs the application's main loop until the user quits
-    pub fn run(&mut self, terminal: &mut tui::Tui, args: Args) -> Result<()> {
+    pub fn run(&mut self, terminal: &mut terminal::Tui, args: Args) -> Result<()> {
         // handle inputs
         let beancount = parse_beancount_file(&args.file)?;
         self.transactions = filter_transactions(beancount);
@@ -120,7 +116,8 @@ impl Widget for &App {
             .title_bottom(instructions.centered())
             .borders(Borders::ALL)
             .border_set(border::THICK);
-
+        let inner_area = block.inner(area);
+        let width = inner_area.width as usize;
         // unwrap() is save here because an error is only raised if try_into() is
         // called on a directive which is not a transaction. But we have already
         // filtered out all non-transactions before.
@@ -128,29 +125,23 @@ impl Widget for &App {
             .clone()
             .try_into()
             .unwrap();
-        let counter_text = Text::from(vec![
-            Line::from(vec![
-                "Value: ".into(),
-                self.current_index.to_string().yellow(),
-            ]),
-            Line::from(vec![
-                current_transaction.date.red(),
-                " ".into(),
-                current_transaction.flag.red(),
-            ]),
-        ]);
+        let metadata_string = vec![
+            Span::from(current_transaction.date + " ").red(),
+            Span::from(current_transaction.flag + " ").magenta(),
+            Span::from(format!("\"{}\" ", current_transaction.payee)),
+            Span::from(format!("\"{}\" ", current_transaction.narration)),
+        ];
+        let metadata_line = Line::from(metadata_string).style(Style::new().yellow());
+        let mut transaction_text = Text::from(vec![metadata_line]);
+        for posting in current_transaction.postings {
+            let posting_line = format_posting_line(posting, width);
+            transaction_text.push_line(posting_line);
+        }
 
-        let main_layout = Layout::vertical([Fill(1)]);
-        let [main_area] = main_layout.areas(area);
-        let transaction_layout = Layout::vertical([Length(1), Fill(1)]);
-        let [metadata_area, posting_area] = transaction_layout.areas(main_area);
-        // let mut date_input = TextArea::default();
-        // date_input.set_placeholder_text("hi");
-        // date_input.render(metadata_area, buf);
-        block.render(main_area, buf);
-        Paragraph::new(counter_text)
-            .centered()
-            .render(metadata_area, buf);
+        block.render(area, buf);
+        Paragraph::new(transaction_text)
+            .left_aligned()
+            .render(inner_area, buf);
     }
 }
 

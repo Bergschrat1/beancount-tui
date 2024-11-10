@@ -1,11 +1,12 @@
 use std::{fs, path::PathBuf};
 
 use beancount_parser::{BeancountFile, Directive, DirectiveContent, Posting};
-use color_eyre::{owo_colors::OwoColorize, Result};
+use color_eyre::Result;
 use rust_decimal::Decimal;
 
 use crate::{error::BeancountTuiError, utils::format_date};
 
+#[derive(Clone, Debug)]
 pub struct PostingTui {
     pub account: String,
     pub amount: Option<Decimal>,
@@ -26,6 +27,7 @@ impl TryFrom<Posting<Decimal>> for PostingTui {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct TransactionTui {
     pub date: String,
     pub flag: String,
@@ -41,7 +43,9 @@ impl TryFrom<Directive<Decimal>> for TransactionTui {
 
     fn try_from(value: Directive<Decimal>) -> std::prelude::v1::Result<Self, Self::Error> {
         let DirectiveContent::Transaction(t) = value.content else {
-            return Err(BeancountTuiError::Parser);
+            return Err(BeancountTuiError::Parser(
+                "Can only parse Transactions".to_string(),
+            ));
         };
         let date = format_date(&value.date);
         let flag = match t.flag {

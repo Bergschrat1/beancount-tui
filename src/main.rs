@@ -2,7 +2,7 @@ mod app;
 mod beancount;
 mod cli;
 mod error;
-mod tui;
+mod terminal;
 mod utils;
 
 use clap::Parser;
@@ -14,9 +14,9 @@ fn main() -> Result<()> {
     color_eyre::install()?;
     let args = Args::parse();
     // create tui
-    let mut terminal = tui::init()?;
+    let mut terminal = terminal::init()?;
     let app_result = app::App::default().run(&mut terminal, args);
-    if let Err(err) = tui::restore() {
+    if let Err(err) = terminal::restore() {
         eprintln!(
             "failed to restore terminal. Run `reset` or restart your terminal to recover: {}",
             err

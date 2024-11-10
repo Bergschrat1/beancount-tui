@@ -1,13 +1,15 @@
 2023-10-01 open Assets:Test USD
 2023-10-01 open Expenses:Test USD
+2023-01-01 open Expenses:Test1 USD
 2023-10-01 txn  "Test Co" "Foo Bar"
     Assets:Test   5 USD
     Expenses:Test 
-2023-10-11 txn  "Test Co" "Foo Bar1"
+2023-01-11 txn  "Test Co" "Foo Bar1"
     Assets:Test   5 USD
-    Expenses:Test 
+    Expenses:Test  - 5 USD 
 2023-10-21 txn  "Test Co" "Foo Bar2"
-    Assets:Test   5 USD
-    Expenses:Test 
+    Assets:Test   -5 USD
+    Expenses:Test   2 USD
+    Expenses:Test1 
 2023-10-31 txn  "Test Co" "Foo Bar3"
     Assets:Test   5 USD
