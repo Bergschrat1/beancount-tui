@@ -1,22 +1,12 @@
 use beancount_parser::Directive;
-use color_eyre::{eyre::Context, owo_colors::OwoColorize, Result};
-use ratatui::{
-    buffer::Buffer,
-    crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
-    layout::Rect,
-    style::{Style, Stylize},
-    symbols::border,
-    text::{Line, Span, Text},
-    widgets::{Block, Borders, Paragraph, Widget},
-    Frame,
-};
+use color_eyre::{eyre::Context, Result};
+use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use rust_decimal::Decimal;
 
 use crate::{
-    beancount::{filter_transactions, parse_beancount_file, TransactionTui},
+    beancount::{filter_transactions, parse_beancount_file},
     cli::Args,
-    terminal,
-    utils::format_posting_line,
+    terminal, ui,
 };
 
 #[derive(Debug, Default)]
@@ -38,10 +28,10 @@ enum InputMode {
 
 #[derive(Debug, Default)]
 pub struct App {
-    exit: bool,
-    transactions: Vec<Directive<Decimal>>,
-    current_index: usize,
-    currently_editing: Fields,
+    pub exit: bool,
+    pub transactions: Vec<Directive<Decimal>>,
+    pub current_index: usize,
+    pub currently_editing: Fields,
 }
 
 impl App {
@@ -51,14 +41,10 @@ impl App {
         let beancount = parse_beancount_file(&args.file)?;
         self.transactions = filter_transactions(beancount);
         while !self.exit {
-            terminal.draw(|frame| self.render_frame(frame))?;
+            terminal.draw(|frame| ui::draw(frame, &self))?;
             self.handle_events().wrap_err("handle events failed")?;
         }
         Ok(())
-    }
-
-    fn render_frame(&self, frame: &mut Frame) {
-        frame.render_widget(self, frame.area());
     }
 
     /// updates the application's state based on user input
@@ -97,51 +83,6 @@ impl App {
 
     fn exit(&mut self) {
         self.exit = true;
-    }
-}
-
-impl Widget for &App {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        let title = Line::from("Beancount importer ".bold());
-        let instructions = Line::from(vec![
-            " Prev Transaction ".into(),
-            "<Left>".blue().bold(),
-            " Next Transaction ".into(),
-            "<Right>".blue().bold(),
-            " Quit ".into(),
-            "<Q> ".blue().bold(),
-        ]);
-        let block = Block::default()
-            .title(title.centered())
-            .title_bottom(instructions.centered())
-            .borders(Borders::ALL)
-            .border_set(border::THICK);
-        let inner_area = block.inner(area);
-        let width = inner_area.width as usize;
-        // unwrap() is save here because an error is only raised if try_into() is
-        // called on a directive which is not a transaction. But we have already
-        // filtered out all non-transactions before.
-        let current_transaction: TransactionTui = self.transactions[self.current_index]
-            .clone()
-            .try_into()
-            .unwrap();
-        let metadata_string = vec![
-            Span::from(current_transaction.date + " ").red(),
-            Span::from(current_transaction.flag + " ").magenta(),
-            Span::from(format!("\"{}\" ", current_transaction.payee)),
-            Span::from(format!("\"{}\" ", current_transaction.narration)),
-        ];
-        let metadata_line = Line::from(metadata_string).style(Style::new().yellow());
-        let mut transaction_text = Text::from(vec![metadata_line]);
-        for posting in current_transaction.postings {
-            let posting_line = format_posting_line(posting, width);
-            transaction_text.push_line(posting_line);
-        }
-
-        block.render(area, buf);
-        Paragraph::new(transaction_text)
-            .left_aligned()
-            .render(inner_area, buf);
     }
 }
 

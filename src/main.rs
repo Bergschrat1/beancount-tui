@@ -3,6 +3,7 @@ mod beancount;
 mod cli;
 mod error;
 mod terminal;
+mod ui;
 mod utils;
 
 use clap::Parser;
@@ -15,7 +16,8 @@ fn main() -> Result<()> {
     let args = Args::parse();
     // create tui
     let mut terminal = terminal::init()?;
-    let app_result = app::App::default().run(&mut terminal, args);
+    let mut app = app::App::default();
+    let app_result = app.run(&mut terminal, args);
     if let Err(err) = terminal::restore() {
         eprintln!(
             "failed to restore terminal. Run `reset` or restart your terminal to recover: {}",
