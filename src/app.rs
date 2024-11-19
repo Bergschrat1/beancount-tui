@@ -21,25 +21,77 @@ enum Fields {
     Currency,
 }
 
-enum InputMode {
+#[derive(Debug)]
+pub enum InputMode {
     Normal,
-    Edit,
+    Insert,
 }
 
-#[derive(Debug, Default)]
-pub struct App {
+#[derive(Debug)]
+pub struct InputField<'t> {
+    textarea: TextArea<'t>,
+    field_type: InputFieldType,
+}
+
+#[derive(Debug)]
+pub struct App<'t> {
     pub exit: bool,
     pub transactions: Vec<Directive<Decimal>>,
     pub current_index: usize,
-    pub currently_editing: Fields,
+    pub currently_selected_field: InputFieldType,
+    pub current_mode: InputMode,
+    pub metadata_fields: Vec<InputField<'t>>,
+    pub account_fields: Vec<[InputField<'t>; 3]>,
+    // TODO field to hold the InputFields
 }
 
-impl App {
-    /// runs the application's main loop until the user quits
-    pub fn run(&mut self, terminal: &mut terminal::Tui, args: Args) -> Result<()> {
+impl<'t> App<'t> {
+    pub fn new(args: Args) -> Result<Self> {
         // handle inputs
         let beancount = parse_beancount_file(&args.file)?;
-        self.transactions = filter_transactions(beancount);
+        let transactions = filter_transactions(beancount);
+        Ok(Self {
+            exit: false,
+            transactions,
+            current_index: 0,
+            currently_selected_field: InputFieldType::Payee,
+            current_mode: InputMode::Normal,
+            metadata_fields: vec![
+                InputField {
+                    textarea: TextArea::new(vec!["".to_string()]),
+                    field_type: InputFieldType::Date,
+                },
+                InputField {
+                    textarea: TextArea::new(vec!["".to_string()]),
+                    field_type: InputFieldType::TransactionType,
+                },
+                InputField {
+                    textarea: TextArea::new(vec!["".to_string()]),
+                    field_type: InputFieldType::Payee,
+                },
+                InputField {
+                    textarea: TextArea::new(vec!["".to_string()]),
+                    field_type: InputFieldType::Narration,
+                },
+            ],
+            account_fields: vec![[
+                InputField {
+                    textarea: TextArea::new(vec!["".to_string()]),
+                    field_type: InputFieldType::Account,
+                },
+                InputField {
+                    textarea: TextArea::new(vec!["".to_string()]),
+                    field_type: InputFieldType::Amount,
+                },
+                InputField {
+                    textarea: TextArea::new(vec!["".to_string()]),
+                    field_type: InputFieldType::Currency,
+                },
+            ]],
+        })
+    }
+    /// runs the application's main loop until the user quits
+    pub fn run(&mut self, terminal: &mut terminal::Tui) -> Result<()> {
         while !self.exit {
             terminal.draw(|frame| ui::draw(frame, &self))?;
             self.handle_events().wrap_err("handle events failed")?;
