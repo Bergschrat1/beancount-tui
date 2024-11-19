@@ -1,7 +1,9 @@
 use beancount_parser::Directive;
 use color_eyre::{eyre::Context, Result};
+use crossterm::event::KeyModifiers;
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use rust_decimal::Decimal;
+use tui_textarea::TextArea;
 
 use crate::{
     beancount::{filter_transactions, parse_beancount_file},
@@ -9,11 +11,10 @@ use crate::{
     terminal, ui,
 };
 
-#[derive(Debug, Default)]
-enum Fields {
+#[derive(Debug)]
+pub enum InputFieldType {
     Date,
     TransactionType,
-    #[default]
     Payee,
     Narration,
     Account,
