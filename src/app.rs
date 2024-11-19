@@ -1,20 +1,24 @@
 use beancount_parser::Directive;
 use color_eyre::{eyre::Context, Result};
 use crossterm::event::KeyModifiers;
-use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use ratatui::{
+    crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
+    widgets::{Block, Borders},
+};
 use rust_decimal::Decimal;
+use std::collections::HashMap;
 use tui_textarea::TextArea;
 
 use crate::{
-    beancount::{filter_transactions, parse_beancount_file},
+    beancount::{filter_transactions, parse_beancount_file, TransactionTui},
     cli::Args,
     terminal, ui,
 };
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub enum InputFieldType {
     Date,
-    TransactionType,
+    Flag,
     Payee,
     Narration,
     Account,
@@ -41,8 +45,8 @@ pub struct App<'t> {
     pub current_index: usize,
     pub currently_selected_field: InputFieldType,
     pub current_mode: InputMode,
-    pub metadata_fields: Vec<InputField<'t>>,
-    pub account_fields: Vec<[InputField<'t>; 3]>,
+    pub metadata_fields: HashMap<InputFieldType, TextArea<'t>>,
+    pub account_fields: Vec<HashMap<InputFieldType, TextArea<'t>>>,
     // TODO field to hold the InputFields
 }
 
@@ -51,44 +55,54 @@ impl<'t> App<'t> {
         // handle inputs
         let beancount = parse_beancount_file(&args.file)?;
         let transactions = filter_transactions(beancount);
+        let first_transaction = TransactionTui::try_from(transactions[0].clone()).unwrap();
+        let mut date_textarea = TextArea::new(vec![first_transaction.date]);
+        let mut flag_textarea = TextArea::new(vec![first_transaction.flag]);
+        let mut payee_textarea = TextArea::new(vec![first_transaction.payee]);
+        let mut narration_textarea = TextArea::new(vec![first_transaction.narration]);
+
+        date_textarea.set_block(Block::default().borders(Borders::ALL).title("Date"));
+        flag_textarea.set_block(Block::default().borders(Borders::ALL));
+        payee_textarea.set_block(Block::default().borders(Borders::ALL).title("Payee"));
+        narration_textarea.set_block(Block::default().borders(Borders::ALL).title("Narration"));
         Ok(Self {
             exit: false,
             transactions,
             current_index: 0,
             currently_selected_field: InputFieldType::Payee,
             current_mode: InputMode::Normal,
-            metadata_fields: vec![
-                InputField {
-                    textarea: TextArea::new(vec!["".to_string()]),
-                    field_type: InputFieldType::Date,
-                },
-                InputField {
-                    textarea: TextArea::new(vec!["".to_string()]),
-                    field_type: InputFieldType::TransactionType,
-                },
-                InputField {
-                    textarea: TextArea::new(vec!["".to_string()]),
-                    field_type: InputFieldType::Payee,
-                },
-                InputField {
-                    textarea: TextArea::new(vec!["".to_string()]),
-                    field_type: InputFieldType::Narration,
-                },
-            ],
-            account_fields: vec![[
-                InputField {
-                    textarea: TextArea::new(vec!["".to_string()]),
-                    field_type: InputFieldType::Account,
-                },
-                InputField {
-                    textarea: TextArea::new(vec!["".to_string()]),
-                    field_type: InputFieldType::Amount,
-                },
-                InputField {
-                    textarea: TextArea::new(vec!["".to_string()]),
-                    field_type: InputFieldType::Currency,
-                },
-            ]],
+            metadata_fields: HashMap::from([
+                (InputFieldType::Date, date_textarea),
+                (InputFieldType::Flag, flag_textarea),
+                (InputFieldType::Payee, payee_textarea),
+                (InputFieldType::Narration, narration_textarea),
+            ]),
+            // vec![
+            //     InputField {
+            //         textarea: TextArea::new(vec!["".to_string()]),
+            //         field_type: InputFieldType::Date,
+            //     },
+            //     InputField {
+            //         textarea: TextArea::new(vec!["".to_string()]),
+            //         field_type: InputFieldType::TransactionType,
+            //     },
+            //     InputField {
+            //         textarea: TextArea::new(vec!["".to_string()]),
+            //         field_type: InputFieldType::Payee,
+            //     },
+            //     InputField {
+            //         textarea: TextArea::new(vec!["".to_string()]),
+            //         field_type: InputFieldType::Narration,
+            //     },
+            // ],
+            account_fields: vec![HashMap::from([
+                (InputFieldType::Account, TextArea::new(vec!["".to_string()])),
+                (InputFieldType::Amount, TextArea::new(vec!["".to_string()])),
+                (
+                    InputFieldType::Currency,
+                    TextArea::new(vec!["".to_string()]),
+                ),
+            ])],
         })
     }
     /// runs the application's main loop until the user quits

@@ -1,3 +1,4 @@
+#[allow(unused)]
 mod app;
 mod beancount;
 mod cli;
@@ -16,8 +17,8 @@ fn main() -> Result<()> {
     let args = Args::parse();
     // create tui
     let mut terminal = terminal::init()?;
-    let mut app = app::App::default();
-    let app_result = app.run(&mut terminal, args);
+    let mut app = app::App::new(args)?;
+    let app_result = app.run(&mut terminal);
     if let Err(err) = terminal::restore() {
         eprintln!(
             "failed to restore terminal. Run `reset` or restart your terminal to recover: {}",
