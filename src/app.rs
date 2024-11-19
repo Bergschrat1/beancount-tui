@@ -112,11 +112,21 @@ impl<'t> App<'t> {
     }
 
     fn handle_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
-        match key_event.code {
-            KeyCode::Char('q') => self.exit(),
-            KeyCode::Left => self.prev_transaction()?,
-            KeyCode::Right => self.next_transaction()?,
-            _ => {}
+        match (key_event.code, key_event.modifiers) {
+            (KeyCode::Esc, KeyModifiers::NONE) => self.exit(),
+            // next transaction
+            (KeyCode::Char('d'), KeyModifiers::CONTROL) => self.next_transaction()?,
+            (KeyCode::Char('f'), KeyModifiers::CONTROL) => self.next_transaction()?,
+            (KeyCode::Char('n'), KeyModifiers::CONTROL) => self.next_transaction()?,
+            (KeyCode::Char('l'), KeyModifiers::CONTROL) => self.next_transaction()?,
+            // previous transaction
+            (KeyCode::Char('u'), KeyModifiers::CONTROL) => self.prev_transaction()?,
+            (KeyCode::Char('b'), KeyModifiers::CONTROL) => self.prev_transaction()?,
+            (KeyCode::Char('p'), KeyModifiers::CONTROL) => self.prev_transaction()?,
+            (KeyCode::Char('h'), KeyModifiers::CONTROL) => self.prev_transaction()?,
+            _ => {
+                // TODO edit current TextArea AND current transaction
+            }
         }
         Ok(())
     }
