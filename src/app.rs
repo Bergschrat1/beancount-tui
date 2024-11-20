@@ -7,7 +7,7 @@ use ratatui::{
 };
 use rust_decimal::Decimal;
 use std::collections::HashMap;
-use tui_textarea::TextArea;
+use tui_textarea::{Input, Key, TextArea};
 
 use crate::{
     beancount::{filter_transactions, parse_beancount_file, TransactionTui},
@@ -15,7 +15,14 @@ use crate::{
     terminal, ui,
 };
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+const METAFIELD_ORDER: [InputFieldType; 4] = [
+    InputFieldType::Date,
+    InputFieldType::Flag,
+    InputFieldType::Payee,
+    InputFieldType::Narration,
+];
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum InputFieldType {
     Date,
     Flag,
@@ -43,7 +50,7 @@ pub struct App<'t> {
     pub exit: bool,
     pub transactions: Vec<Directive<Decimal>>,
     pub current_index: usize,
-    pub currently_selected_field: InputFieldType,
+    pub currently_selected_field: usize,
     pub current_mode: InputMode,
     pub metadata_fields: HashMap<InputFieldType, TextArea<'t>>,
     pub account_fields: Vec<HashMap<InputFieldType, TextArea<'t>>>,
@@ -56,54 +63,17 @@ impl<'t> App<'t> {
         let beancount = parse_beancount_file(&args.file)?;
         let transactions = filter_transactions(beancount);
         let first_transaction = TransactionTui::try_from(transactions[0].clone()).unwrap();
-        let mut date_textarea = TextArea::new(vec![first_transaction.date]);
-        let mut flag_textarea = TextArea::new(vec![first_transaction.flag]);
-        let mut payee_textarea = TextArea::new(vec![first_transaction.payee]);
-        let mut narration_textarea = TextArea::new(vec![first_transaction.narration]);
-
-        date_textarea.set_block(Block::default().borders(Borders::ALL).title("Date"));
-        flag_textarea.set_block(Block::default().borders(Borders::ALL));
-        payee_textarea.set_block(Block::default().borders(Borders::ALL).title("Payee"));
-        narration_textarea.set_block(Block::default().borders(Borders::ALL).title("Narration"));
-        Ok(Self {
+        let mut ret = Self {
             exit: false,
             transactions,
             current_index: 0,
-            currently_selected_field: InputFieldType::Payee,
+            currently_selected_field: 2, // payee field
             current_mode: InputMode::Normal,
-            metadata_fields: HashMap::from([
-                (InputFieldType::Date, date_textarea),
-                (InputFieldType::Flag, flag_textarea),
-                (InputFieldType::Payee, payee_textarea),
-                (InputFieldType::Narration, narration_textarea),
-            ]),
-            // vec![
-            //     InputField {
-            //         textarea: TextArea::new(vec!["".to_string()]),
-            //         field_type: InputFieldType::Date,
-            //     },
-            //     InputField {
-            //         textarea: TextArea::new(vec!["".to_string()]),
-            //         field_type: InputFieldType::TransactionType,
-            //     },
-            //     InputField {
-            //         textarea: TextArea::new(vec!["".to_string()]),
-            //         field_type: InputFieldType::Payee,
-            //     },
-            //     InputField {
-            //         textarea: TextArea::new(vec!["".to_string()]),
-            //         field_type: InputFieldType::Narration,
-            //     },
-            // ],
-            account_fields: vec![HashMap::from([
-                (InputFieldType::Account, TextArea::new(vec!["".to_string()])),
-                (InputFieldType::Amount, TextArea::new(vec!["".to_string()])),
-                (
-                    InputFieldType::Currency,
-                    TextArea::new(vec!["".to_string()]),
-                ),
-            ])],
-        })
+            metadata_fields: HashMap::default(),
+            account_fields: vec![],
+        };
+        ret.update_textareas();
+        Ok(ret)
     }
     /// runs the application's main loop until the user quits
     pub fn run(&mut self, terminal: &mut terminal::Tui) -> Result<()> {
@@ -127,21 +97,88 @@ impl<'t> App<'t> {
     }
 
     fn handle_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
-        match (key_event.code, key_event.modifiers) {
-            (KeyCode::Esc, KeyModifiers::NONE) => self.exit(),
-            // next transaction
-            (KeyCode::Char('d'), KeyModifiers::CONTROL) => self.next_transaction()?,
-            (KeyCode::Char('f'), KeyModifiers::CONTROL) => self.next_transaction()?,
-            (KeyCode::Char('n'), KeyModifiers::CONTROL) => self.next_transaction()?,
-            (KeyCode::Char('l'), KeyModifiers::CONTROL) => self.next_transaction()?,
-            // previous transaction
-            (KeyCode::Char('u'), KeyModifiers::CONTROL) => self.prev_transaction()?,
-            (KeyCode::Char('b'), KeyModifiers::CONTROL) => self.prev_transaction()?,
-            (KeyCode::Char('p'), KeyModifiers::CONTROL) => self.prev_transaction()?,
-            (KeyCode::Char('h'), KeyModifiers::CONTROL) => self.prev_transaction()?,
-            _ => {
-                // TODO edit current TextArea AND current transaction
+        match key_event.into() {
+            Input { key: Key::Esc, .. }
+            | Input {
+                key: Key::Char('q'),
+                ctrl: true,
+                ..
+            } => self.exit(),
+            Input {
+                key: Key::Char('n'),
+                ctrl: true,
+                ..
+            } => self.next_transaction()?,
+            Input {
+                key: Key::Char('p'),
+                ctrl: true,
+                ..
+            } => self.prev_transaction()?,
+            Input { key: Key::Tab, .. }
+            | Input {
+                key: Key::Right,
+                ctrl: true,
+                ..
+            } => self.next_field()?,
+            Input {
+                key: Key::Left,
+                ctrl: true,
+                ..
+            } => self.prev_field()?,
+            text_input => {
+                self.metadata_fields
+                    .get_mut(&METAFIELD_ORDER[self.currently_selected_field])
+                    .unwrap()
+                    .input(text_input);
             }
+        }
+        Ok(())
+    }
+    fn update_textareas(&mut self) -> Result<()> {
+        let current_transaction =
+            TransactionTui::try_from(self.transactions[self.current_index].clone()).unwrap();
+        let mut date_textarea = TextArea::new(vec![current_transaction.date]);
+        let mut flag_textarea = TextArea::new(vec![current_transaction.flag]);
+        let mut payee_textarea = TextArea::new(vec![current_transaction.payee]);
+        let mut narration_textarea = TextArea::new(vec![current_transaction.narration]);
+        date_textarea.set_block(Block::default().borders(Borders::ALL).title("Date"));
+        flag_textarea.set_block(Block::default().borders(Borders::ALL));
+        payee_textarea.set_block(Block::default().borders(Borders::ALL).title("Payee"));
+        narration_textarea.set_block(Block::default().borders(Borders::ALL).title("Narration"));
+        self.metadata_fields
+            .insert(InputFieldType::Date, date_textarea);
+        self.metadata_fields
+            .insert(InputFieldType::Flag, flag_textarea);
+        self.metadata_fields
+            .insert(InputFieldType::Payee, payee_textarea);
+        self.metadata_fields
+            .insert(InputFieldType::Narration, narration_textarea);
+
+        // self.account_fields = vec![HashMap::from([
+        //     (InputFieldType::Account, TextArea::new(vec!["".to_string()])),
+        //     (InputFieldType::Amount, TextArea::new(vec!["".to_string()])),
+        //     (
+        //         InputFieldType::Currency,
+        //         TextArea::new(vec!["".to_string()]),
+        //     ),
+        // ])]; // TODO create all account entries
+        Ok(())
+    }
+
+    fn next_field(&mut self) -> Result<()> {
+        if self.currently_selected_field < METAFIELD_ORDER.len() - 1 {
+            self.currently_selected_field += 1;
+        } else {
+            self.currently_selected_field = 0;
+        }
+        Ok(())
+    }
+
+    fn prev_field(&mut self) -> Result<()> {
+        if self.currently_selected_field > 0 {
+            self.currently_selected_field -= 1;
+        } else {
+            self.currently_selected_field = METAFIELD_ORDER.len() - 1;
         }
         Ok(())
     }
@@ -150,11 +187,13 @@ impl<'t> App<'t> {
         if self.current_index < self.transactions.len() - 1 {
             self.current_index = self.current_index.saturating_add(1);
         }
+        self.update_textareas();
         Ok(())
     }
 
     fn prev_transaction(&mut self) -> Result<()> {
         self.current_index = self.current_index.saturating_sub(1);
+        self.update_textareas();
         Ok(())
     }
 
