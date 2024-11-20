@@ -38,11 +38,11 @@ pub struct TransactionTui {
     pub postings: Vec<PostingTui>,
 }
 
-impl TryFrom<Directive<Decimal>> for TransactionTui {
+impl TryFrom<&Directive<Decimal>> for TransactionTui {
     type Error = BeancountTuiError;
 
-    fn try_from(value: Directive<Decimal>) -> std::prelude::v1::Result<Self, Self::Error> {
-        let DirectiveContent::Transaction(t) = value.content else {
+    fn try_from(value: &Directive<Decimal>) -> std::prelude::v1::Result<Self, Self::Error> {
+        let DirectiveContent::Transaction(t) = value.content.to_owned() else {
             return Err(BeancountTuiError::Parser(
                 "Can only parse Transactions".to_string(),
             ));

@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{Block, Borders},
 };
 use rust_decimal::Decimal;
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Formatter};
 use tui_textarea::{Input, Key, TextArea};
 
 use crate::{
@@ -40,12 +40,6 @@ pub enum InputMode {
 }
 
 #[derive(Debug)]
-pub struct InputField<'t> {
-    textarea: TextArea<'t>,
-    field_type: InputFieldType,
-}
-
-#[derive(Debug)]
 pub struct App<'t> {
     pub exit: bool,
     pub transactions: Vec<Directive<Decimal>>,
@@ -54,7 +48,6 @@ pub struct App<'t> {
     pub current_mode: InputMode,
     pub metadata_fields: HashMap<InputFieldType, TextArea<'t>>,
     pub account_fields: Vec<HashMap<InputFieldType, TextArea<'t>>>,
-    // TODO field to hold the InputFields
 }
 
 impl<'t> App<'t> {
@@ -62,7 +55,7 @@ impl<'t> App<'t> {
         // handle inputs
         let beancount = parse_beancount_file(&args.file)?;
         let transactions = filter_transactions(beancount);
-        let first_transaction = TransactionTui::try_from(transactions[0].clone()).unwrap();
+        let first_transaction = TransactionTui::try_from(&transactions[0].clone()).unwrap();
         let mut ret = Self {
             exit: false,
             transactions,
@@ -119,12 +112,22 @@ impl<'t> App<'t> {
                 key: Key::Right,
                 ctrl: true,
                 ..
-            } => self.next_field()?,
+            }
+            | Input {
+                key: Key::Char('l'),
+                ctrl: true,
+                ..
+            } => self.navigate_field(true)?,
             Input {
                 key: Key::Left,
                 ctrl: true,
                 ..
-            } => self.prev_field()?,
+            }
+            | Input {
+                key: Key::Char('h'),
+                ctrl: true,
+                ..
+            } => self.navigate_field(false)?,
             text_input => {
                 self.metadata_fields
                     .get_mut(&METAFIELD_ORDER[self.currently_selected_field])
@@ -136,7 +139,7 @@ impl<'t> App<'t> {
     }
     fn update_textareas(&mut self) -> Result<()> {
         let current_transaction =
-            TransactionTui::try_from(self.transactions[self.current_index].clone()).unwrap();
+            TransactionTui::try_from(&self.transactions[self.current_index]).unwrap();
         let mut date_textarea = TextArea::new(vec![current_transaction.date]);
         let mut flag_textarea = TextArea::new(vec![current_transaction.flag]);
         let mut payee_textarea = TextArea::new(vec![current_transaction.payee]);
@@ -165,20 +168,13 @@ impl<'t> App<'t> {
         Ok(())
     }
 
-    fn next_field(&mut self) -> Result<()> {
-        if self.currently_selected_field < METAFIELD_ORDER.len() - 1 {
-            self.currently_selected_field += 1;
+    fn navigate_field(&mut self, forward: bool) -> Result<()> {
+        if forward {
+            self.currently_selected_field =
+                (self.currently_selected_field + 1) % METAFIELD_ORDER.len();
         } else {
-            self.currently_selected_field = 0;
-        }
-        Ok(())
-    }
-
-    fn prev_field(&mut self) -> Result<()> {
-        if self.currently_selected_field > 0 {
-            self.currently_selected_field -= 1;
-        } else {
-            self.currently_selected_field = METAFIELD_ORDER.len() - 1;
+            self.currently_selected_field =
+                (self.currently_selected_field + METAFIELD_ORDER.len() - 1) % METAFIELD_ORDER.len();
         }
         Ok(())
     }
