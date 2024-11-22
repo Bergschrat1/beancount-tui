@@ -1,8 +1,12 @@
 use beancount_parser::Directive;
-use color_eyre::{eyre::Context, Result};
+use color_eyre::{
+    eyre::{Context, ContextCompat, OptionExt},
+    Result,
+};
 use crossterm::event::KeyModifiers;
 use ratatui::{
     crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
+    style::Stylize,
     widgets::{Block, Borders},
 };
 use rust_decimal::Decimal;
@@ -22,15 +26,22 @@ const METAFIELD_ORDER: [InputFieldType; 4] = [
     InputFieldType::Narration,
 ];
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Debug, Default, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum InputFieldType {
     Date,
     Flag,
+    #[default]
     Payee,
     Narration,
     Account,
     Amount,
     Currency,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct InputField<'t> {
+    pub input_type: InputFieldType,
+    pub textarea: TextArea<'t>,
 }
 
 #[derive(Debug)]
@@ -46,8 +57,8 @@ pub struct App<'t> {
     pub current_index: usize,
     pub currently_selected_field: usize,
     pub current_mode: InputMode,
-    pub metadata_fields: HashMap<InputFieldType, TextArea<'t>>,
-    pub account_fields: Vec<HashMap<InputFieldType, TextArea<'t>>>,
+    pub metadata_fields: [InputField<'t>; 4],
+    pub account_fields: Vec<Vec<InputField<'t>>>,
 }
 
 impl<'t> App<'t> {
@@ -62,7 +73,7 @@ impl<'t> App<'t> {
             current_index: 0,
             currently_selected_field: 2, // payee field
             current_mode: InputMode::Normal,
-            metadata_fields: HashMap::default(),
+            metadata_fields: core::array::from_fn(|_| InputField::default()),
             account_fields: vec![],
         };
         ret.update_textareas();
@@ -71,7 +82,7 @@ impl<'t> App<'t> {
     /// runs the application's main loop until the user quits
     pub fn run(&mut self, terminal: &mut terminal::Tui) -> Result<()> {
         while !self.exit {
-            terminal.draw(|frame| ui::draw(frame, &self))?;
+            terminal.draw(|frame| ui::draw(frame, &self).expect("Couldn't draw ui!"))?;
             self.handle_events().wrap_err("handle events failed")?;
         }
         Ok(())
@@ -130,14 +141,37 @@ impl<'t> App<'t> {
             } => self.navigate_field(false)?,
             text_input => {
                 self.metadata_fields
-                    .get_mut(&METAFIELD_ORDER[self.currently_selected_field])
+                    .get_mut(self.currently_selected_field)
                     .unwrap()
+                    .textarea
                     .input(text_input);
             }
         }
         Ok(())
     }
     fn update_textareas(&mut self) -> Result<()> {
+        let current_transaction =
+            TransactionTui::try_from(&self.transactions[self.current_index]).unwrap();
+        self.metadata_fields
+            .get_mut(0)
+            .ok_or_eyre("No date field initialized!")?
+            .textarea
+            .set_placeholder_text(&current_transaction.date);
+        self.metadata_fields
+            .get_mut(1)
+            .ok_or_eyre("No flag field initialized!")?
+            .textarea
+            .set_placeholder_text(&current_transaction.flag);
+        self.metadata_fields
+            .get_mut(2)
+            .ok_or_eyre("No payee field initialized!")?
+            .textarea
+            .set_placeholder_text(&current_transaction.payee);
+        self.metadata_fields
+            .get_mut(3)
+            .ok_or_eyre("No narration field initialized!")?
+            .textarea
+            .set_placeholder_text(&current_transaction.narration);
         let current_transaction =
             TransactionTui::try_from(&self.transactions[self.current_index]).unwrap();
         let mut date_textarea = TextArea::new(vec![current_transaction.date]);
@@ -148,15 +182,6 @@ impl<'t> App<'t> {
         flag_textarea.set_block(Block::default().borders(Borders::ALL));
         payee_textarea.set_block(Block::default().borders(Borders::ALL).title("Payee"));
         narration_textarea.set_block(Block::default().borders(Borders::ALL).title("Narration"));
-        self.metadata_fields
-            .insert(InputFieldType::Date, date_textarea);
-        self.metadata_fields
-            .insert(InputFieldType::Flag, flag_textarea);
-        self.metadata_fields
-            .insert(InputFieldType::Payee, payee_textarea);
-        self.metadata_fields
-            .insert(InputFieldType::Narration, narration_textarea);
-
         // self.account_fields = vec![HashMap::from([
         //     (InputFieldType::Account, TextArea::new(vec!["".to_string()])),
         //     (InputFieldType::Amount, TextArea::new(vec!["".to_string()])),
@@ -190,6 +215,11 @@ impl<'t> App<'t> {
     fn prev_transaction(&mut self) -> Result<()> {
         self.current_index = self.current_index.saturating_sub(1);
         self.update_textareas();
+        Ok(())
+    }
+
+    fn toggle_textarea_active(textarea: &mut TextArea) -> Result<()> {
+        textarea.set_cursor_style(textarea.cursor_style().reversed());
         Ok(())
     }
 
