@@ -52,31 +52,30 @@ pub enum InputMode {
 
 #[derive(Debug)]
 pub struct App<'t> {
-    pub exit: bool,
-    pub transactions: Vec<Directive<Decimal>>,
-    pub current_index: usize,
-    pub currently_selected_field: usize,
-    pub current_mode: InputMode,
-    pub metadata_fields: [InputField<'t>; 4],
-    pub account_fields: Vec<Vec<InputField<'t>>>,
+    pub exit: bool,                            // wether we want to exit the program
+    pub transactions: Vec<TransactionTui<'t>>, // all the transactions that were parsed
+    pub current_index: usize,                  // which transaction is currently shown
+    pub currently_selected_field: usize,       // which field of the current transaction is selected
+    pub current_mode: InputMode,               // in which editing mode are we in
+    pub current_account: usize,                // which account is currently selected
 }
 
 impl<'t> App<'t> {
     pub fn new(args: Args) -> Result<Self> {
         // handle inputs
         let beancount = parse_beancount_file(&args.file)?;
-        let transactions = filter_transactions(beancount);
-        let first_transaction = TransactionTui::try_from(&transactions[0].clone()).unwrap();
+        let transactions = filter_transactions(beancount)
+            .iter()
+            .map(|t| t.try_into().expect("Couldn't parse trnsaction!"))
+            .collect();
         let mut ret = Self {
             exit: false,
             transactions,
             current_index: 0,
             currently_selected_field: 2, // payee field
             current_mode: InputMode::Normal,
-            metadata_fields: core::array::from_fn(|_| InputField::default()),
-            account_fields: vec![],
+            current_account: 0,
         };
-        ret.update_textareas();
         Ok(ret)
     }
     /// runs the application's main loop until the user quits
@@ -101,6 +100,9 @@ impl<'t> App<'t> {
     }
 
     fn handle_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
+        let current_transaction = &mut self.transactions[self.current_index];
+        let mut current_metadata_field =
+            &mut current_transaction.metadata_textareas[self.currently_selected_field];
         match key_event.into() {
             Input { key: Key::Esc, .. }
             | Input {
@@ -140,56 +142,9 @@ impl<'t> App<'t> {
                 ..
             } => self.navigate_field(false)?,
             text_input => {
-                self.metadata_fields
-                    .get_mut(self.currently_selected_field)
-                    .unwrap()
-                    .textarea
-                    .input(text_input);
+                current_metadata_field.input(text_input);
             }
         }
-        Ok(())
-    }
-    fn update_textareas(&mut self) -> Result<()> {
-        let current_transaction =
-            TransactionTui::try_from(&self.transactions[self.current_index]).unwrap();
-        self.metadata_fields
-            .get_mut(0)
-            .ok_or_eyre("No date field initialized!")?
-            .textarea
-            .set_placeholder_text(&current_transaction.date);
-        self.metadata_fields
-            .get_mut(1)
-            .ok_or_eyre("No flag field initialized!")?
-            .textarea
-            .set_placeholder_text(&current_transaction.flag);
-        self.metadata_fields
-            .get_mut(2)
-            .ok_or_eyre("No payee field initialized!")?
-            .textarea
-            .set_placeholder_text(&current_transaction.payee);
-        self.metadata_fields
-            .get_mut(3)
-            .ok_or_eyre("No narration field initialized!")?
-            .textarea
-            .set_placeholder_text(&current_transaction.narration);
-        let current_transaction =
-            TransactionTui::try_from(&self.transactions[self.current_index]).unwrap();
-        let mut date_textarea = TextArea::new(vec![current_transaction.date]);
-        let mut flag_textarea = TextArea::new(vec![current_transaction.flag]);
-        let mut payee_textarea = TextArea::new(vec![current_transaction.payee]);
-        let mut narration_textarea = TextArea::new(vec![current_transaction.narration]);
-        date_textarea.set_block(Block::default().borders(Borders::ALL).title("Date"));
-        flag_textarea.set_block(Block::default().borders(Borders::ALL));
-        payee_textarea.set_block(Block::default().borders(Borders::ALL).title("Payee"));
-        narration_textarea.set_block(Block::default().borders(Borders::ALL).title("Narration"));
-        // self.account_fields = vec![HashMap::from([
-        //     (InputFieldType::Account, TextArea::new(vec!["".to_string()])),
-        //     (InputFieldType::Amount, TextArea::new(vec!["".to_string()])),
-        //     (
-        //         InputFieldType::Currency,
-        //         TextArea::new(vec!["".to_string()]),
-        //     ),
-        // ])]; // TODO create all account entries
         Ok(())
     }
 
@@ -208,13 +163,11 @@ impl<'t> App<'t> {
         if self.current_index < self.transactions.len() - 1 {
             self.current_index = self.current_index.saturating_add(1);
         }
-        self.update_textareas();
         Ok(())
     }
 
     fn prev_transaction(&mut self) -> Result<()> {
         self.current_index = self.current_index.saturating_sub(1);
-        self.update_textareas();
         Ok(())
     }
 

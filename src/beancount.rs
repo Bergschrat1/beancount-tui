@@ -1,80 +1,84 @@
 use std::{fs, path::PathBuf};
 
-use beancount_parser::{BeancountFile, Directive, DirectiveContent, Posting};
+use beancount_parser::{BeancountFile, Directive, DirectiveContent, Posting, Transaction};
 use color_eyre::Result;
 use rust_decimal::Decimal;
+use tui_textarea::TextArea;
 
 use crate::{error::BeancountTuiError, utils::format_date};
 
 #[derive(Clone, Debug)]
-pub struct PostingTui {
-    pub account: String,
-    pub amount: Option<Decimal>,
-    pub currency: Option<String>,
+pub struct PostingTui<'t> {
+    pub account_textarea: TextArea<'t>,
+    pub amount_textarea: TextArea<'t>,
+    pub currency_textarea: TextArea<'t>,
 }
 
-impl TryFrom<Posting<Decimal>> for PostingTui {
+impl<'t> TryFrom<Posting<Decimal>> for PostingTui<'t> {
     type Error = BeancountTuiError;
 
     fn try_from(value: Posting<Decimal>) -> std::prelude::v1::Result<Self, Self::Error> {
-        let amount = value.amount.clone().map(|a| a.value);
-        let currency = value.amount.map(|a| a.currency.to_string());
+        let account_textarea = TextArea::new(vec![value.account.to_string()]);
+        let (amount, currency) = match value.amount {
+            Some(a) => (a.value.to_string(), a.currency.to_string()),
+            None => ("".to_string(), "".to_string()),
+        };
+        let amount_textarea = TextArea::new(vec![amount]);
+        let currency_textarea = TextArea::new(vec![currency]);
         Ok(Self {
-            account: value.account.to_string(),
-            amount,
-            currency,
+            account_textarea,
+            amount_textarea,
+            currency_textarea,
         })
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct TransactionTui {
-    pub date: String,
-    pub flag: String,
-    pub payee: String,
-    pub narration: String,
-    pub links: Vec<String>,
-    pub tags: Vec<String>,
-    pub postings: Vec<PostingTui>,
+pub struct TransactionTui<'t> {
+    pub directive: Transaction<Decimal>,
+    pub metadata_textareas: [TextArea<'t>; 4],
+    pub postings_textareas: Vec<PostingTui<'t>>,
 }
 
-impl TryFrom<&Directive<Decimal>> for TransactionTui {
+impl<'t> TryFrom<&Directive<Decimal>> for TransactionTui<'t> {
     type Error = BeancountTuiError;
 
-    fn try_from(value: &Directive<Decimal>) -> std::prelude::v1::Result<Self, Self::Error> {
-        let DirectiveContent::Transaction(t) = value.content.to_owned() else {
+    fn try_from(value: &Directive<Decimal>) -> Result<Self, BeancountTuiError> {
+        let DirectiveContent::Transaction(transaction) = value.content.to_owned() else {
             return Err(BeancountTuiError::Parser(
                 "Can only parse Transactions".to_string(),
             ));
         };
-        let date = format_date(&value.date);
-        let flag = match t.flag {
+        let date_textarea = TextArea::new(vec![format_date(&value.date)]);
+        let flag_textarea = TextArea::new(vec![match transaction.flag {
             Some(c) => c.to_string(),
             None => "*".to_string(),
-        };
-        let links = t.links.into_iter().map(|l| l.to_string()).collect();
-        let tags = t.tags.into_iter().map(|t| t.to_string()).collect();
-        let payee = match t.payee {
+        }]);
+        // let links = t.links.into_iter().map(|l| l.to_string()).collect();
+        // let tags = t.tags.into_iter().map(|t| t.to_string()).collect();
+        let payee_textarea = TextArea::new(vec![match transaction.payee.clone() {
             Some(p) => p,
             None => String::from(""),
-        };
-        let narration = match t.narration {
+        }]);
+        let narration_textarea = TextArea::new(vec![match transaction.narration.clone() {
             Some(n) => n,
             None => String::from(""),
-        };
-        let postings = t
+        }]);
+        let postings_textareas = transaction
             .postings
+            .clone()
             .into_iter()
-            .map(|p| p.try_into().unwrap())
+            .map(|p| p.try_into().expect("Couldn't parse posting."))
             .collect::<Vec<PostingTui>>();
         Ok(TransactionTui {
-            date,
-            flag,
-            payee,
-            narration,
-            links,
-            tags,
-            postings,
+            directive: transaction,
+            metadata_textareas: [
+                date_textarea,
+                flag_textarea,
+                payee_textarea,
+                narration_textarea,
+            ],
+            postings_textareas,
         })
     }
 }

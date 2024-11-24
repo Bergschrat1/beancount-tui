@@ -9,13 +9,8 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph},
     Frame,
 };
-use tui_textarea::TextArea;
 
-use crate::{
-    app::{App, InputFieldType},
-    beancount::TransactionTui,
-    utils::format_posting_line,
-};
+use crate::app::App;
 
 pub fn draw(frame: &mut Frame, app: &App) -> Result<()> {
     let title = Line::from(
@@ -58,26 +53,23 @@ fn draw_metadata_fields(frame: &mut Frame, app: &App, area: Rect) -> Result<()> 
         Constraint::Min(10),
     ]);
     let [date_area, flag_area, payee_area, narration_area] = horizontal_layout.areas(area);
-    let date_textarea = &app
-        .metadata_fields
+    let current_transaction = &app.transactions[app.current_index];
+    let date_textarea = current_transaction
+        .metadata_textareas
         .get(0)
-        .ok_or_eyre("No date field initialized!")?
-        .textarea;
-    let flag_textarea = &app
-        .metadata_fields
+        .ok_or_eyre("No date field initialized!")?;
+    let flag_textarea = current_transaction
+        .metadata_textareas
         .get(1)
-        .ok_or_eyre("No flag field initialized!")?
-        .textarea;
-    let payee_textarea = &app
-        .metadata_fields
+        .ok_or_eyre("No flag field initialized!")?;
+    let payee_textarea = current_transaction
+        .metadata_textareas
         .get(2)
-        .ok_or_eyre("No payee field initialized!")?
-        .textarea;
-    let narration_textarea = &app
-        .metadata_fields
+        .ok_or_eyre("No payee field initialized!")?;
+    let narration_textarea = current_transaction
+        .metadata_textareas
         .get(3)
-        .ok_or_eyre("No narration field initialized!")?
-        .textarea;
+        .ok_or_eyre("No narration field initialized!")?;
     frame.render_widget(date_textarea, date_area);
     frame.render_widget(flag_textarea, flag_area);
     frame.render_widget(payee_textarea, payee_area);
