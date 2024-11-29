@@ -1,10 +1,4 @@
 use beancount_parser::Date;
-use ratatui::{
-    style::Stylize,
-    text::{Line, Span},
-};
-
-use crate::beancount::PostingTui;
 
 pub fn format_date(date: &Date) -> String {
     format!("{}-{:02}-{:02}", date.year, date.month, date.day)

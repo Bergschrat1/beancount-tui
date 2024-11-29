@@ -1,16 +1,9 @@
-use beancount_parser::Directive;
-use color_eyre::{
-    eyre::{Context, ContextCompat, OptionExt},
-    Result,
-};
-use crossterm::event::KeyModifiers;
+use color_eyre::{eyre::Context, Result};
 use ratatui::{
-    crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
-    style::Stylize,
+    crossterm::event::{self, Event, KeyEvent, KeyEventKind},
+    style::{Color, Style, Stylize},
     widgets::{Block, Borders},
 };
-use rust_decimal::Decimal;
-use std::{collections::HashMap, fmt::Formatter};
 use tui_textarea::{Input, Key, TextArea};
 
 use crate::{
@@ -76,6 +69,7 @@ impl<'t> App<'t> {
             current_mode: InputMode::Normal,
             current_account: 0,
         };
+        ret.update_textareas();
         Ok(ret)
     }
     /// runs the application's main loop until the user quits
@@ -156,7 +150,36 @@ impl<'t> App<'t> {
             self.currently_selected_field =
                 (self.currently_selected_field + METAFIELD_ORDER.len() - 1) % METAFIELD_ORDER.len();
         }
+        self.update_textareas();
         Ok(())
+    }
+
+    fn update_textareas(&mut self) {
+        let current_transaction = &mut self.transactions[self.current_index];
+
+        for (index, metadata_field) in current_transaction
+            .metadata_textareas
+            .iter_mut()
+            .enumerate()
+        {
+            if index == self.currently_selected_field {
+                // Highlight the selected TextArea
+                metadata_field.set_block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_style(Style::default().fg(Color::Yellow)), // Highlight with yellow border
+                );
+                metadata_field.set_cursor_style(Style::default().reversed());
+            } else {
+                // Reset style for unselected TextAreas
+                metadata_field.set_block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_style(Style::default()), // Default border style
+                );
+                metadata_field.set_cursor_style(Style::default().bg(Color::Reset));
+            }
+        }
     }
 
     fn next_transaction(&mut self) -> Result<()> {

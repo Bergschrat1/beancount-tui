@@ -1,12 +1,10 @@
-use std::borrow::Borrow;
-
 use color_eyre::eyre::{OptionExt, Result};
 use ratatui::{
     layout::{Constraint, Layout, Rect},
-    style::{Style, Stylize},
+    style::Stylize,
     symbols::border,
-    text::{Line, Span, Text},
-    widgets::{Block, Borders, Paragraph},
+    text::Line,
+    widgets::{Block, Borders},
     Frame,
 };
 
