@@ -11,6 +11,14 @@ use tui_textarea::TextArea;
 
 use crate::{error::BeancountTuiError, utils::format_date};
 
+macro_rules! create_textarea {
+    ($name:expr, $value:expr) => {{
+        let mut textarea = TextArea::new(vec![$value]);
+        textarea.set_block(Block::default().borders(Borders::ALL).title($name));
+        textarea
+    }};
+}
+
 #[derive(Clone, Debug)]
 pub struct PostingTui<'t> {
     pub account_textarea: TextArea<'t>,
@@ -53,22 +61,29 @@ impl<'t> TryFrom<&Directive<Decimal>> for TransactionTui<'t> {
                 "Can only parse Transactions".to_string(),
             ));
         };
-        let mut date_textarea = TextArea::new(vec![format_date(&value.date)]);
-        let mut flag_textarea = TextArea::new(vec![match transaction.flag {
-            Some(c) => c.to_string(),
-            None => "*".to_string(),
-        }]);
-        // let links = t.links.into_iter().map(|l| l.to_string()).collect();
-        // let tags = t.tags.into_iter().map(|t| t.to_string()).collect();
-        let mut payee_textarea = TextArea::new(vec![match transaction.payee.clone() {
-            Some(p) => p,
-            None => String::from(""),
-        }]);
-        let mut narration_textarea = TextArea::new(vec![match transaction.narration.clone() {
-            Some(n) => n,
-            None => String::from(""),
-        }]);
-        let mut postings_textareas = transaction
+        let date_textarea = create_textarea!("Date", format_date(&value.date));
+        let flag_textarea = create_textarea!(
+            "Flag",
+            match transaction.flag {
+                Some(c) => c.to_string(),
+                None => "*".to_string(),
+            }
+        );
+        let payee_textarea = create_textarea!(
+            "Payee",
+            match transaction.payee.clone() {
+                Some(p) => p,
+                None => String::from(""),
+            }
+        );
+        let narration_textarea = create_textarea!(
+            "Narration",
+            match transaction.narration.clone() {
+                Some(n) => n,
+                None => String::from(""),
+            }
+        );
+        let postings_textareas = transaction
             .postings
             .clone()
             .into_iter()
@@ -101,6 +116,7 @@ pub fn parse_beancount_file(file_path: &PathBuf) -> Result<BeancountFile<Decimal
     Ok(beancount)
 }
 
+/// Filters out everything that is not a DirectiveContent::Transaction
 pub fn filter_transactions(beancount_file: BeancountFile<Decimal>) -> Vec<Directive<Decimal>> {
     beancount_file
         .directives

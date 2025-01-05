@@ -57,7 +57,7 @@ impl<'t> App<'t> {
     pub fn new(args: Args) -> Result<Self> {
         // handle inputs
         let beancount = parse_beancount_file(&args.file)?;
-        let transactions = filter_transactions(beancount)
+        let transactions: Vec<TransactionTui<'t>> = filter_transactions(beancount)
             .iter()
             .map(|t| t.try_into().expect("Couldn't parse trnsaction!"))
             .collect();
