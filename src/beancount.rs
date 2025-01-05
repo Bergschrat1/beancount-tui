@@ -15,10 +15,12 @@ macro_rules! create_textarea {
     ($name:expr, $value:expr) => {{
         let mut textarea = TextArea::new(vec![$value]);
         textarea.set_block(Block::default().borders(Borders::ALL).title($name));
+        textarea.set_cursor_line_style(Style::default());
         textarea
     }};
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub struct PostingTui<'t> {
     pub account_textarea: TextArea<'t>,
@@ -30,13 +32,13 @@ impl<'t> TryFrom<Posting<Decimal>> for PostingTui<'t> {
     type Error = BeancountTuiError;
 
     fn try_from(value: Posting<Decimal>) -> std::prelude::v1::Result<Self, Self::Error> {
-        let account_textarea = TextArea::new(vec![value.account.to_string()]);
+        let account_textarea = create_textarea!("Account", value.account.to_string());
         let (amount, currency) = match value.amount {
             Some(a) => (a.value.to_string(), a.currency.to_string()),
             None => ("".to_string(), "".to_string()),
         };
-        let amount_textarea = TextArea::new(vec![amount]);
-        let currency_textarea = TextArea::new(vec![currency]);
+        let amount_textarea = create_textarea!("Amount", amount);
+        let currency_textarea = create_textarea!("Currency", currency);
         Ok(Self {
             account_textarea,
             amount_textarea,
@@ -45,6 +47,7 @@ impl<'t> TryFrom<Posting<Decimal>> for PostingTui<'t> {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub struct TransactionTui<'t> {
     pub directive: Transaction<Decimal>,
@@ -89,22 +92,14 @@ impl<'t> TryFrom<&Directive<Decimal>> for TransactionTui<'t> {
             .into_iter()
             .map(|p| p.try_into().expect("Couldn't parse posting."))
             .collect::<Vec<PostingTui>>();
-        date_textarea.set_block(Block::default().borders(Borders::ALL).title("Date"));
-        flag_textarea.set_block(Block::default().borders(Borders::ALL).title("Flag"));
-        payee_textarea.set_block(Block::default().borders(Borders::ALL).title("Payee"));
-        narration_textarea.set_block(Block::default().borders(Borders::ALL).title("Narration"));
-        let mut all_textareas = [
-            date_textarea,
-            flag_textarea,
-            payee_textarea,
-            narration_textarea,
-        ];
-        all_textareas
-            .iter_mut()
-            .for_each(|t| t.set_cursor_line_style(Style::default()));
         Ok(TransactionTui {
             directive: transaction,
-            metadata_textareas: all_textareas,
+            metadata_textareas: [
+                date_textarea,
+                flag_textarea,
+                payee_textarea,
+                narration_textarea,
+            ],
             postings_textareas,
         })
     }

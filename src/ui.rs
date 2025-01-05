@@ -1,4 +1,3 @@
-
 use color_eyre::eyre::{OptionExt, Result};
 use ratatui::{
     layout::{Constraint, Layout, Rect},
@@ -36,11 +35,12 @@ pub fn draw(frame: &mut Frame, app: &App) -> Result<()> {
     frame.render_widget(&block, frame.area());
     let inner_area = block.inner(frame.area());
     let vertical_layout = Layout::vertical([Constraint::Length(3), Constraint::Min(10)]);
-    let [metadata_area, account_area] = vertical_layout.areas(inner_area);
+    let [metadata_area, postings_area] = vertical_layout.areas(inner_area);
 
     // draw_transaction(frame, app, transaction_area);
     // draw_edit(frame, app, edit_area);
     draw_metadata_fields(frame, app, metadata_area)?;
+    draw_postings(frame, app, postings_area)?;
     Ok(())
 }
 
@@ -73,5 +73,35 @@ fn draw_metadata_fields(frame: &mut Frame, app: &App, area: Rect) -> Result<()> 
     frame.render_widget(flag_textarea, flag_area);
     frame.render_widget(payee_textarea, payee_area);
     frame.render_widget(narration_textarea, narration_area);
+    Ok(())
+}
+
+fn draw_postings(frame: &mut Frame, app: &App, area: Rect) -> Result<()> {
+    let current_transaction = &app.transactions[app.current_index];
+    let postings = &current_transaction.postings_textareas;
+
+    let layout = Layout::vertical(
+        postings
+            .iter()
+            .map(|_| Constraint::Length(3)) // Each posting gets 3 lines
+            .collect::<Vec<_>>(),
+    );
+
+    let areas = layout.split(area);
+
+    for (i, posting) in postings.iter().enumerate() {
+        let posting_area = areas[i];
+        let horizontal_layout = Layout::horizontal([
+            Constraint::Percentage(50),
+            Constraint::Percentage(25),
+            Constraint::Percentage(25),
+        ]);
+        let [account_area, amount_area, currency_area] = horizontal_layout.areas(posting_area);
+
+        frame.render_widget(&posting.account_textarea, account_area);
+        frame.render_widget(&posting.amount_textarea, amount_area);
+        frame.render_widget(&posting.currency_textarea, currency_area);
+    }
+
     Ok(())
 }
