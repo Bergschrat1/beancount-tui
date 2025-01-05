@@ -1,5 +1,6 @@
 use beancount_parser::Date;
 
+
 pub fn format_date(date: &Date) -> String {
     format!("{}-{:02}-{:02}", date.year, date.month, date.day)
 }
