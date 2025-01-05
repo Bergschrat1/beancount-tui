@@ -1,3 +1,5 @@
+use std::ops::Sub;
+
 use color_eyre::{eyre::Context, Result};
 use ratatui::{
     crossterm::event::{self, Event, KeyEvent, KeyEventKind},
@@ -45,12 +47,15 @@ pub enum InputMode {
 
 #[derive(Debug)]
 pub struct App<'t> {
-    pub exit: bool,                            // wether we want to exit the program
-    pub transactions: Vec<TransactionTui<'t>>, // all the transactions that were parsed
-    pub current_index: usize,                  // which transaction is currently shown
-    pub currently_selected_field: usize,       // which field of the current transaction is selected
-    pub current_mode: InputMode,               // in which editing mode are we in
-    pub current_account: usize,                // which account is currently selected
+    pub exit: bool,                               // wether we want to exit the program
+    pub transactions: Vec<TransactionTui<'t>>,    // all the transactions that were parsed
+    pub current_index: usize,                     // which transaction is currently shown
+    pub currently_selected_metadata_field: usize, // which field of the current transaction is selected
+    pub currently_selected_posting: usize,        // the posting that is currently selected
+    pub currently_selected_posting_field: usize,  // the posting field that is currently selected
+    pub current_mode: InputMode,                  // in which editing mode are we in
+    pub current_account: usize,                   // which account is currently selected
+    pub focus_on_postings: bool, // wether we are currently focused on a posting field or a metadata field
 }
 
 impl<'t> App<'t> {
@@ -65,9 +70,12 @@ impl<'t> App<'t> {
             exit: false,
             transactions,
             current_index: 0,
-            currently_selected_field: 2, // payee field
+            currently_selected_metadata_field: 2, // payee field
+            currently_selected_posting: 0,
+            currently_selected_posting_field: 0,
             current_mode: InputMode::Normal,
             current_account: 0,
+            focus_on_postings: false,
         };
         ret.update_textareas();
         Ok(ret)
@@ -96,7 +104,7 @@ impl<'t> App<'t> {
     fn handle_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
         let current_transaction = &mut self.transactions[self.current_index];
         let mut current_metadata_field =
-            &mut current_transaction.metadata_textareas[self.currently_selected_field];
+            &mut current_transaction.metadata_textareas[self.currently_selected_metadata_field];
         match key_event.into() {
             Input { key: Key::Esc, .. }
             | Input {
@@ -114,6 +122,7 @@ impl<'t> App<'t> {
                 ctrl: true,
                 ..
             } => self.prev_transaction()?,
+            // Focus right
             Input { key: Key::Tab, .. }
             | Input {
                 key: Key::Right,
@@ -124,7 +133,14 @@ impl<'t> App<'t> {
                 key: Key::Char('l'),
                 ctrl: true,
                 ..
-            } => self.navigate_field(true)?,
+            } => {
+                if self.focus_on_postings {
+                    self.navigate_posting_field(true)?;
+                } else {
+                    self.navigate_metadata_field(true)?;
+                }
+            }
+            // Focus left
             Input {
                 key: Key::Left,
                 ctrl: true,
@@ -134,7 +150,41 @@ impl<'t> App<'t> {
                 key: Key::Char('h'),
                 ctrl: true,
                 ..
-            } => self.navigate_field(false)?,
+            } => {
+                if self.focus_on_postings {
+                    self.navigate_posting_field(false)?;
+                } else {
+                    self.navigate_metadata_field(false)?;
+                }
+            }
+            // TODO Focus Down
+            Input {
+                key: Key::Char('j'),
+                ctrl: true,
+                ..
+            } => {
+                if self.focus_on_postings {
+                    self.navigate_posting(true)?;
+                } else {
+                    self.focus_on_postings = true;
+                    self.currently_selected_posting = 0;
+                    self.update_textareas();
+                }
+            }
+            // TODO Focus Up
+            Input {
+                key: Key::Char('k'),
+                ctrl: true,
+                ..
+            } => {
+                if self.focus_on_postings {
+                    self.navigate_posting(false)?;
+                } else {
+                    self.focus_on_postings = true;
+                    self.currently_selected_posting = 0; // TODO make this select the last posting
+                    self.update_textareas();
+                }
+            }
             text_input => {
                 current_metadata_field.input(text_input);
             }
@@ -142,16 +192,42 @@ impl<'t> App<'t> {
         Ok(())
     }
 
-    fn navigate_field(&mut self, forward: bool) -> Result<()> {
+    fn navigate_metadata_field(&mut self, forward: bool) -> Result<()> {
         if forward {
-            self.currently_selected_field =
-                (self.currently_selected_field + 1) % METAFIELD_ORDER.len();
+            self.currently_selected_metadata_field =
+                (self.currently_selected_metadata_field + 1) % METAFIELD_ORDER.len();
         } else {
-            self.currently_selected_field =
-                (self.currently_selected_field + METAFIELD_ORDER.len() - 1) % METAFIELD_ORDER.len();
+            self.currently_selected_metadata_field =
+                (self.currently_selected_metadata_field + METAFIELD_ORDER.len() - 1)
+                    % METAFIELD_ORDER.len();
         }
         self.update_textareas();
         Ok(())
+    }
+
+    fn navigate_posting(&mut self, forward: bool) -> Result<()> {
+        let current_transaction = &mut self.transactions[self.current_index];
+        let n_postings = current_transaction.postings_textareas.len();
+        if forward {
+            let next_posting = self.currently_selected_posting + 1;
+            if next_posting >= n_postings {
+                self.focus_on_postings = false
+            } else {
+                self.currently_selected_posting = next_posting
+            }
+        } else {
+            let prev_posting = self.currently_selected_posting.checked_sub(1);
+            if prev_posting.is_none() {
+                self.focus_on_postings = false
+            } else {
+                self.currently_selected_posting = prev_posting.unwrap()
+            }
+        }
+        self.update_textareas();
+        Ok(())
+    }
+    fn navigate_posting_field(&mut self, forward: bool) -> Result<()> {
+        todo!()
     }
 
     fn update_textareas(&mut self) {
@@ -162,7 +238,7 @@ impl<'t> App<'t> {
             .iter_mut()
             .enumerate()
         {
-            if index == self.currently_selected_field {
+            if index == self.currently_selected_metadata_field {
                 // Highlight the selected TextArea
                 metadata_field.set_block(
                     Block::default()
