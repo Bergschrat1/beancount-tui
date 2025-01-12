@@ -9,7 +9,7 @@ use ratatui::{
 use tui_textarea::{Input, Key, TextArea};
 
 use crate::{
-    beancount::{filter_transactions, parse_beancount_file, TransactionTui},
+    beancount::{filter_transactions, parse_beancount_file, PostingField, TransactionTui},
     cli::Args,
     terminal, ui,
 };
@@ -19,6 +19,12 @@ const METAFIELD_ORDER: [InputFieldType; 4] = [
     InputFieldType::Flag,
     InputFieldType::Payee,
     InputFieldType::Narration,
+];
+
+const POSTING_FIELD_ORDER: [PostingField; 3] = [
+    PostingField::Account,
+    PostingField::Amount,
+    PostingField::Currency,
 ];
 
 #[derive(Debug, Default, PartialEq, Eq, Hash, Clone, Copy)]
@@ -52,7 +58,7 @@ pub struct App<'t> {
     pub current_index: usize,                     // which transaction is currently shown
     pub currently_selected_metadata_field: usize, // which field of the current transaction is selected
     pub currently_selected_posting: usize,        // the posting that is currently selected
-    pub currently_selected_posting_field: usize,  // the posting field that is currently selected
+    pub currently_selected_posting_field: PostingField, // the posting that is currently selected
     pub current_mode: InputMode,                  // in which editing mode are we in
     pub current_account: usize,                   // which account is currently selected
     pub focus_on_postings: bool, // wether we are currently focused on a posting field or a metadata field
@@ -72,7 +78,7 @@ impl<'t> App<'t> {
             current_index: 0,
             currently_selected_metadata_field: 2, // payee field
             currently_selected_posting: 0,
-            currently_selected_posting_field: 0,
+            currently_selected_posting_field: PostingField::Account,
             current_mode: InputMode::Normal,
             current_account: 0,
             focus_on_postings: false,
@@ -103,8 +109,14 @@ impl<'t> App<'t> {
 
     fn handle_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
         let current_transaction = &mut self.transactions[self.current_index];
-        let mut current_metadata_field =
-            &mut current_transaction.metadata_textareas[self.currently_selected_metadata_field];
+        let current_field = {
+            if self.focus_on_postings {
+                current_transaction.postings_textareas[self.currently_selected_posting]
+                    .get_field_mut(&self.currently_selected_posting_field)
+            } else {
+                &mut current_transaction.metadata_textareas[self.currently_selected_metadata_field]
+            }
+        };
         match key_event.into() {
             Input { key: Key::Esc, .. }
             | Input {
@@ -157,7 +169,7 @@ impl<'t> App<'t> {
                     self.navigate_metadata_field(false)?;
                 }
             }
-            // TODO Focus Down
+            // Focus Down
             Input {
                 key: Key::Char('j'),
                 ctrl: true,
@@ -171,7 +183,7 @@ impl<'t> App<'t> {
                     self.update_textareas();
                 }
             }
-            // TODO Focus Up
+            // Focus Up
             Input {
                 key: Key::Char('k'),
                 ctrl: true,
@@ -181,12 +193,13 @@ impl<'t> App<'t> {
                     self.navigate_posting(false)?;
                 } else {
                     self.focus_on_postings = true;
-                    self.currently_selected_posting = 0; // TODO make this select the last posting
+                    self.currently_selected_posting =
+                        current_transaction.postings_textareas.len() - 1; // TODO make this select the last posting
                     self.update_textareas();
                 }
             }
             text_input => {
-                current_metadata_field.input(text_input);
+                current_field.input(text_input);
             }
         }
         Ok(())
@@ -227,7 +240,13 @@ impl<'t> App<'t> {
         Ok(())
     }
     fn navigate_posting_field(&mut self, forward: bool) -> Result<()> {
-        todo!()
+        let current_transaction = &mut self.transactions[self.current_index];
+        let current_posting =
+            &mut current_transaction.postings_textareas[self.currently_selected_posting];
+        self.currently_selected_posting_field =
+            current_posting.next_field(&self.currently_selected_posting_field, forward);
+        self.update_textareas();
+        Ok(())
     }
 
     fn update_textareas(&mut self) {
@@ -238,7 +257,7 @@ impl<'t> App<'t> {
             .iter_mut()
             .enumerate()
         {
-            if index == self.currently_selected_metadata_field {
+            if index == self.currently_selected_metadata_field && !self.focus_on_postings {
                 // Highlight the selected TextArea
                 metadata_field.set_block(
                     Block::default()
@@ -254,6 +273,36 @@ impl<'t> App<'t> {
                         .border_style(Style::default()), // Default border style
                 );
                 metadata_field.set_cursor_style(Style::default().bg(Color::Reset));
+            }
+        }
+        for (index, posting) in current_transaction
+            .postings_textareas
+            .iter_mut()
+            .enumerate()
+        {
+            for posting_field in POSTING_FIELD_ORDER {
+                if index == self.currently_selected_posting
+                    && posting_field == self.currently_selected_posting_field
+                    && self.focus_on_postings
+                {
+                    let current_posting_field = posting.get_field_mut(&posting_field);
+                    // Highlight the selected TextArea
+                    current_posting_field.set_block(
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .border_style(Style::default().fg(Color::Yellow)), // Highlight with yellow border
+                    );
+                    current_posting_field.set_cursor_style(Style::default().reversed());
+                } else {
+                    let current_posting_field = posting.get_field_mut(&posting_field);
+                    // Reset style for unselected TextAreas
+                    current_posting_field.set_block(
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .border_style(Style::default()), // Default border style
+                    );
+                    current_posting_field.set_cursor_style(Style::default().bg(Color::Reset));
+                }
             }
         }
     }

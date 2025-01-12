@@ -20,6 +20,15 @@ macro_rules! create_textarea {
     }};
 }
 
+// PostingTUI
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PostingField {
+    Account,
+    Amount,
+    Currency,
+}
+
 #[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub struct PostingTui<'t> {
@@ -46,6 +55,37 @@ impl<'t> TryFrom<Posting<Decimal>> for PostingTui<'t> {
         })
     }
 }
+
+impl<'t> PostingTui<'t> {
+    pub fn next_field(&mut self, current_field: &PostingField, forward: bool) -> PostingField {
+        match (current_field, forward) {
+            (PostingField::Account, true) => PostingField::Amount,
+            (PostingField::Amount, true) => PostingField::Currency,
+            (PostingField::Currency, true) => PostingField::Account,
+            (PostingField::Account, false) => PostingField::Currency,
+            (PostingField::Currency, false) => PostingField::Amount,
+            (PostingField::Amount, false) => PostingField::Account,
+        }
+    }
+
+    pub fn get_field_mut(&mut self, field: &PostingField) -> &mut TextArea<'t> {
+        match field {
+            PostingField::Account => &mut self.account_textarea,
+            PostingField::Amount => &mut self.amount_textarea,
+            PostingField::Currency => &mut self.currency_textarea,
+        }
+    }
+
+    pub fn get_field(&self, field: &PostingField) -> &TextArea<'t> {
+        match field {
+            PostingField::Account => &self.account_textarea,
+            PostingField::Amount => &self.amount_textarea,
+            PostingField::Currency => &self.currency_textarea,
+        }
+    }
+}
+
+// TransactionTui
 
 #[allow(dead_code)]
 #[derive(Clone, Debug)]
