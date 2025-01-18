@@ -194,7 +194,7 @@ impl<'t> App<'t> {
                 } else {
                     self.focus_on_postings = true;
                     self.currently_selected_posting =
-                        current_transaction.postings_textareas.len() - 1; // TODO make this select the last posting
+                        current_transaction.postings_textareas.len() - 1;
                     self.update_textareas();
                 }
             }
@@ -257,20 +257,22 @@ impl<'t> App<'t> {
             .iter_mut()
             .enumerate()
         {
+            let block = metadata_field
+                .block()
+                .expect("Textarea should have a block");
             if index == self.currently_selected_metadata_field && !self.focus_on_postings {
                 // Highlight the selected TextArea
+                // FIXME this currently overwrites the title of the block
                 metadata_field.set_block(
-                    Block::default()
-                        .borders(Borders::ALL)
+                    block
+                        .clone()
                         .border_style(Style::default().fg(Color::Yellow)), // Highlight with yellow border
                 );
                 metadata_field.set_cursor_style(Style::default().reversed());
             } else {
                 // Reset style for unselected TextAreas
                 metadata_field.set_block(
-                    Block::default()
-                        .borders(Borders::ALL)
-                        .border_style(Style::default()), // Default border style
+                    block.clone().border_style(Style::default()), // Default border style
                 );
                 metadata_field.set_cursor_style(Style::default().bg(Color::Reset));
             }
@@ -286,20 +288,24 @@ impl<'t> App<'t> {
                     && self.focus_on_postings
                 {
                     let current_posting_field = posting.get_field_mut(&posting_field);
+                    let block = current_posting_field
+                        .block()
+                        .expect("Textarea should have a block");
                     // Highlight the selected TextArea
                     current_posting_field.set_block(
-                        Block::default()
-                            .borders(Borders::ALL)
+                        block
+                            .clone()
                             .border_style(Style::default().fg(Color::Yellow)), // Highlight with yellow border
                     );
                     current_posting_field.set_cursor_style(Style::default().reversed());
                 } else {
                     let current_posting_field = posting.get_field_mut(&posting_field);
+                    let block = current_posting_field
+                        .block()
+                        .expect("Textarea should have a block");
                     // Reset style for unselected TextAreas
                     current_posting_field.set_block(
-                        Block::default()
-                            .borders(Borders::ALL)
-                            .border_style(Style::default()), // Default border style
+                        block.clone().border_style(Style::default()), // Default border style
                     );
                     current_posting_field.set_cursor_style(Style::default().bg(Color::Reset));
                 }

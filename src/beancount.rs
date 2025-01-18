@@ -106,7 +106,7 @@ impl<'t> TryFrom<&Directive<Decimal>> for TransactionTui<'t> {
         };
         let date_textarea = create_textarea!("Date", format_date(&value.date));
         let flag_textarea = create_textarea!(
-            "Flag",
+            "",
             match transaction.flag {
                 Some(c) => c.to_string(),
                 None => "*".to_string(),
