@@ -1,14 +1,37 @@
 use color_eyre::eyre::{OptionExt, Result};
 use ratatui::{
-    layout::{Constraint, Layout, Rect},
-    style::Stylize,
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    style::{Color, Style, Stylize},
     symbols::border,
-    text::Line,
-    widgets::{Block, Borders},
+    text::{Line, Text},
+    widgets::{Block, Borders, Clear, Paragraph, Wrap},
     Frame,
 };
 
 use crate::app::App;
+
+/// helper function to create a centered rect using up certain percentage of the available rect `r`
+fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+    // Cut the given rectangle into three vertical pieces
+    let popup_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage(percent_y),
+            Constraint::Percentage((100 - percent_y) / 2),
+        ])
+        .split(r);
+
+    // Then cut the middle vertical piece into three width-wise pieces
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage(percent_x),
+            Constraint::Percentage((100 - percent_x) / 2),
+        ])
+        .split(popup_layout[1])[1] // Return the middle chunk
+}
 
 pub fn draw(frame: &mut Frame, app: &App) -> Result<()> {
     let title = Line::from(
@@ -41,6 +64,30 @@ pub fn draw(frame: &mut Frame, app: &App) -> Result<()> {
     // draw_edit(frame, app, edit_area);
     draw_metadata_fields(frame, app, metadata_area)?;
     draw_postings(frame, app, postings_area)?;
+
+    if app.popup.active {
+        let popup_area = centered_rect(60, 90, frame.area());
+        draw_popup(frame, app, popup_area);
+    }
+    Ok(())
+}
+
+fn draw_popup(frame: &mut Frame, app: &App, area: Rect) -> Result<()> {
+    frame.render_widget(Clear, area);
+    let popup_block = Block::default()
+        .title(Line::from("Confirm").centered())
+        .title_bottom(Line::from("<Enter>: Confirm, <Esc>: Decline").centered())
+        .borders(Borders::ALL);
+    // .style(Style::default().bg(Color::DarkGray));
+
+    let exit_text = Text::styled(&app.popup.prompt, Style::default()).centered();
+    // the `trim: false` will stop the text from being cut off when over the edge of the block
+    let exit_paragraph = Paragraph::new(exit_text)
+        .alignment(Alignment::Center)
+        .block(popup_block)
+        .wrap(Wrap { trim: false });
+
+    frame.render_widget(exit_paragraph, area);
     Ok(())
 }
 

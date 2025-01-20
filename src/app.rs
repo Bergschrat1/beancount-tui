@@ -27,6 +27,22 @@ const POSTING_FIELD_ORDER: [PostingField; 3] = [
     PostingField::Currency,
 ];
 
+#[derive(Debug, Clone)]
+pub struct Popup {
+    pub active: bool,
+    pub prompt: String,
+}
+
+impl Popup {
+    pub fn show(&mut self, prompt: &str) {
+        self.active = true;
+        self.prompt = prompt.to_string();
+    }
+    pub fn hide(&mut self) {
+        self.active = false;
+    }
+}
+
 #[derive(Debug, Default, PartialEq, Eq, Hash, Clone, Copy)]
 pub enum InputFieldType {
     Date,
@@ -62,6 +78,7 @@ pub struct App<'t> {
     pub current_mode: InputMode,                  // in which editing mode are we in
     pub current_account: usize,                   // which account is currently selected
     pub focus_on_postings: bool, // wether we are currently focused on a posting field or a metadata field
+    pub popup: Popup,
 }
 
 impl<'t> App<'t> {
@@ -82,6 +99,10 @@ impl<'t> App<'t> {
             current_mode: InputMode::Normal,
             current_account: 0,
             focus_on_postings: false,
+            popup: Popup {
+                active: false,
+                prompt: "".to_string(),
+            },
         };
         ret.update_textareas();
         Ok(ret)
@@ -100,11 +121,28 @@ impl<'t> App<'t> {
         match event::read()? {
             // it's important to check that the event is a key press event as
             // crossterm also emits key release and repeat events on Windows.
-            Event::Key(key_event) if key_event.kind == KeyEventKind::Press => self
-                .handle_key_event(key_event)
-                .wrap_err_with(|| format!("handling key event failed:\n{key_event:#?}")),
+            Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
+                if self.popup.active {
+                    self.handle_popup_key_event(key_event)
+                        .wrap_err_with(|| format!("handling key event failed:\n{key_event:#?}"))
+                } else {
+                    self.handle_key_event(key_event)
+                        .wrap_err_with(|| format!("handling key event failed:\n{key_event:#?}"))
+                }
+            }
             _ => Ok(()),
         }
+    }
+
+    fn handle_popup_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
+        match key_event.into() {
+            Input { key: Key::Esc, .. } => self.popup.hide(),
+            Input {
+                key: Key::Enter, ..
+            } => self.exit(),
+            _ => (),
+        };
+        Ok(())
     }
 
     fn handle_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
@@ -123,7 +161,9 @@ impl<'t> App<'t> {
                 key: Key::Char('q'),
                 ctrl: true,
                 ..
-            } => self.exit(),
+            } => {
+                self.confirm_close();
+            }
             Input {
                 key: Key::Char('n'),
                 ctrl: true,
@@ -317,17 +357,25 @@ impl<'t> App<'t> {
         if self.current_index < self.transactions.len() - 1 {
             self.current_index = self.current_index.saturating_add(1);
         }
+        self.update_textareas();
         Ok(())
     }
 
     fn prev_transaction(&mut self) -> Result<()> {
         self.current_index = self.current_index.saturating_sub(1);
+        self.update_textareas();
         Ok(())
     }
 
     fn toggle_textarea_active(textarea: &mut TextArea) -> Result<()> {
         textarea.set_cursor_style(textarea.cursor_style().reversed());
         Ok(())
+    }
+
+    fn confirm_close(&mut self) {
+        // 1. show popup
+        self.popup
+            .show("Do you want to close the application and print the transaction to stdout?")
     }
 
     fn exit(&mut self) {
