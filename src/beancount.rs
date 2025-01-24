@@ -114,17 +114,11 @@ impl<'t> TryFrom<&Directive<Decimal>> for TransactionTui<'t> {
         );
         let payee_textarea = create_textarea!(
             "Payee",
-            match transaction.payee.clone() {
-                Some(p) => p,
-                None => String::from(""),
-            }
+            transaction.payee.clone().unwrap_or_default()
         );
         let narration_textarea = create_textarea!(
             "Narration",
-            match transaction.narration.clone() {
-                Some(n) => n,
-                None => String::from(""),
-            }
+            transaction.narration.clone().unwrap_or_default()
         );
         let postings_textareas = transaction
             .postings
@@ -167,7 +161,7 @@ impl<'t> TransactionTui<'t> {
 
         format!(
             "{} {} {} {}\n{}",
-            metadata.get(0).unwrap_or(&"".to_string()),
+            metadata.first().unwrap_or(&"".to_string()),
             metadata.get(1).unwrap_or(&"".to_string()),
             metadata.get(2).unwrap_or(&"".to_string()),
             metadata.get(3).unwrap_or(&"".to_string()),
@@ -189,9 +183,9 @@ pub fn filter_transactions(beancount_file: BeancountFile<Decimal>) -> Vec<Direct
         .into_iter()
         .filter(|d| {
             if let DirectiveContent::Transaction(_) = &d.content {
-                return true;
+                true
             } else {
-                return false;
+                false
             }
         })
         .collect()

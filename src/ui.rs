@@ -1,7 +1,7 @@
 use color_eyre::eyre::{OptionExt, Result};
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::{Color, Style, Stylize},
+    style::{Style, Stylize},
     symbols::border,
     text::{Line, Text},
     widgets::{Block, Borders, Clear, Paragraph, Wrap},
@@ -112,8 +112,7 @@ fn draw_metadata_fields(frame: &mut Frame, app: &App, area: Rect) -> Result<()> 
     let [date_area, flag_area, payee_area, narration_area] = horizontal_layout.areas(area);
     let current_transaction = &app.transactions[app.current_index];
     let date_textarea = current_transaction
-        .metadata_textareas
-        .get(0)
+        .metadata_textareas.first()
         .ok_or_eyre("No date field initialized!")?;
     let flag_textarea = current_transaction
         .metadata_textareas

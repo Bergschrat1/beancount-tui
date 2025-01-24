@@ -111,7 +111,7 @@ impl<'t> App<'t> {
     /// runs the application's main loop until the user quits
     pub fn run(&mut self, terminal: &mut terminal::Tui) -> Result<Vec<TransactionTui<'t>>> {
         while !self.exit {
-            terminal.draw(|frame| ui::draw(frame, &self).expect("Couldn't draw ui!"))?;
+            terminal.draw(|frame| ui::draw(frame, self).expect("Couldn't draw ui!"))?;
             self.handle_events().wrap_err("handle events failed")?;
         }
         Ok(self.transactions.clone())
