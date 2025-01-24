@@ -145,6 +145,37 @@ impl<'t> TryFrom<&Directive<Decimal>> for TransactionTui<'t> {
     }
 }
 
+impl<'t> TransactionTui<'t> {
+    pub fn format_transaction(&self) -> String {
+        let metadata = self
+            .metadata_textareas
+            .iter()
+            .map(|ta| ta.lines().join(" "))
+            .collect::<Vec<_>>();
+        let postings = self
+            .postings_textareas
+            .iter()
+            .map(|posting| {
+                format!(
+                    "    {}    {} {}",
+                    posting.account_textarea.lines().join(" "),
+                    posting.amount_textarea.lines().join(" "),
+                    posting.currency_textarea.lines().join(" "),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        format!(
+            "{} {} {} {}\n{}",
+            metadata.get(0).unwrap_or(&"".to_string()),
+            metadata.get(1).unwrap_or(&"".to_string()),
+            metadata.get(2).unwrap_or(&"".to_string()),
+            metadata.get(3).unwrap_or(&"".to_string()),
+            postings.join("\n")
+        )
+    }
+}
+
 pub fn parse_beancount_file(file_path: &PathBuf) -> Result<BeancountFile<Decimal>> {
     let beancount_content = fs::read_to_string(file_path)?;
     let beancount: BeancountFile<Decimal> = beancount_content.parse()?;

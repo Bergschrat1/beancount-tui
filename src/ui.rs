@@ -66,8 +66,8 @@ pub fn draw(frame: &mut Frame, app: &App) -> Result<()> {
     draw_postings(frame, app, postings_area)?;
 
     if app.popup.active {
-        let popup_area = centered_rect(60, 90, frame.area());
-        draw_popup(frame, app, popup_area);
+        let popup_area = centered_rect(30, 20, frame.area());
+        draw_popup(frame, app, popup_area)?;
     }
     Ok(())
 }
@@ -82,7 +82,18 @@ fn draw_popup(frame: &mut Frame, app: &App, area: Rect) -> Result<()> {
 
     let exit_text = Text::styled(&app.popup.prompt, Style::default()).centered();
     // the `trim: false` will stop the text from being cut off when over the edge of the block
-    let exit_paragraph = Paragraph::new(exit_text)
+    let lines = app.popup.prompt.lines().count();
+    let vertical_padding = (area.height.saturating_sub(lines as u16) / 2).max(1); // Ensure at least 1 line padding
+
+    // Add vertical padding manually to center the text
+    let padded_text = format!(
+        "{}{}{}",
+        "\n".repeat(vertical_padding as usize),
+        app.popup.prompt,
+        "\n".repeat(vertical_padding as usize)
+    );
+
+    let exit_paragraph = Paragraph::new(padded_text)
         .alignment(Alignment::Center)
         .block(popup_block)
         .wrap(Wrap { trim: false });

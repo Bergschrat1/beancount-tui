@@ -18,12 +18,15 @@ fn main() -> Result<()> {
     // create tui
     let mut terminal = terminal::init()?;
     let mut app = app::App::new(args)?;
-    let app_result = app.run(&mut terminal);
+    let app_result = app.run(&mut terminal)?;
     if let Err(err) = terminal::restore() {
         eprintln!(
             "failed to restore terminal. Run `reset` or restart your terminal to recover: {}",
             err
         );
     }
-    app_result
+    for transaction in app_result {
+        println!("{}", transaction.format_transaction())
+    }
+    Ok(())
 }

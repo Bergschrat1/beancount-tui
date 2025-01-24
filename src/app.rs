@@ -107,13 +107,14 @@ impl<'t> App<'t> {
         ret.update_textareas();
         Ok(ret)
     }
+
     /// runs the application's main loop until the user quits
-    pub fn run(&mut self, terminal: &mut terminal::Tui) -> Result<()> {
+    pub fn run(&mut self, terminal: &mut terminal::Tui) -> Result<Vec<TransactionTui<'t>>> {
         while !self.exit {
             terminal.draw(|frame| ui::draw(frame, &self).expect("Couldn't draw ui!"))?;
             self.handle_events().wrap_err("handle events failed")?;
         }
-        Ok(())
+        Ok(self.transactions.clone())
     }
 
     /// updates the application's state based on user input
@@ -373,7 +374,6 @@ impl<'t> App<'t> {
     }
 
     fn confirm_close(&mut self) {
-        // 1. show popup
         self.popup
             .show("Do you want to close the application and print the transaction to stdout?")
     }
