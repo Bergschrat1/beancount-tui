@@ -61,7 +61,7 @@ pub struct InputField<'t> {
     pub textarea: TextArea<'t>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum InputMode {
     Normal,
     Insert,
@@ -386,68 +386,170 @@ impl<'t> App<'t> {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use ratatui::style::Style;
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
 
-//     use super::*;
+    use event::{KeyCode, KeyEventState, KeyModifiers};
+    use ratatui::style::Style;
 
-//     #[test]
-//     fn render() {
-//         let app = App::default();
-//         let mut buf = Buffer::empty(Rect::new(0, 0, 50, 4));
+    use super::*;
 
-//         app.render(buf.area, &mut buf);
+    #[test]
+    fn test_app_initialization() {
+        let args = Args {
+            file: PathBuf::from("data/test.beancount"),
+        };
+        let app = App::new(args).expect("Failed to initialize app");
 
-//         let mut expected = Buffer::with_lines(vec![
-//             "┏━━━━━━━━━━━━━ Counter App Tutorial ━━━━━━━━━━━━━┓",
-//             "┃                    Value: 0                    ┃",
-//             "┃                                                ┃",
-//             "┗━ Decrement <Left> Increment <Right> Quit <Q> ━━┛",
-//         ]);
-//         let title_style = Style::new().bold();
-//         let counter_style = Style::new().yellow();
-//         let key_style = Style::new().blue().bold();
-//         expected.set_style(Rect::new(14, 0, 22, 1), title_style);
-//         expected.set_style(Rect::new(28, 1, 1, 1), counter_style);
-//         expected.set_style(Rect::new(13, 3, 6, 1), key_style);
-//         expected.set_style(Rect::new(30, 3, 7, 1), key_style);
-//         expected.set_style(Rect::new(43, 3, 4, 1), key_style);
+        assert!(!app.exit);
+        assert_eq!(app.current_index, 0);
+        assert_eq!(app.currently_selected_metadata_field, 2);
+        assert_eq!(app.currently_selected_posting, 0);
+        assert_eq!(app.currently_selected_posting_field, PostingField::Account);
+        assert_eq!(app.current_mode, InputMode::Normal);
+        assert_eq!(app.current_account, 0);
+        assert!(!app.popup.active);
+    }
 
-//         assert_eq!(buf, expected);
-//     }
+    #[test]
+    fn test_handle_key_event_navigate_transaction() {
+        let args = Args {
+            file: PathBuf::from("data/test.beancount"),
+        };
+        let mut app = App::new(args).expect("Failed to initialize app");
+        let initial_index = app.current_index;
 
-//     #[test]
-//     fn handle_key_event() {
-//         let mut app = App::default();
-//         app.handle_key_event(KeyCode::Right.into()).unwrap();
-//         assert_eq!(app.current_index, 1);
+        let key_event_next = KeyEvent {
+            code: KeyCode::Char('n'),
+            modifiers: KeyModifiers::CONTROL,
+            kind: KeyEventKind::Press,
+            state: KeyEventState::NONE,
+        };
+        app.handle_key_event(key_event_next)
+            .expect("Failed to handle key event");
+        assert_eq!(app.current_index, initial_index + 1);
 
-//         app.handle_key_event(KeyCode::Left.into()).unwrap();
-//         assert_eq!(app.current_index, 0);
+        let key_event_prev = KeyEvent {
+            code: KeyCode::Char('p'),
+            modifiers: KeyModifiers::CONTROL,
+            kind: KeyEventKind::Press,
+            state: KeyEventState::NONE,
+        };
+        app.handle_key_event(key_event_prev)
+            .expect("Failed to handle key event");
+        assert_eq!(app.current_index, initial_index);
+    }
 
-//         let mut app = App::default();
-//         app.handle_key_event(KeyCode::Char('q').into()).unwrap();
-//         assert!(app.exit);
-//     }
+    #[test]
+    fn test_toggle_popup() {
+        let args = Args {
+            file: PathBuf::from("data/test.beancount"),
+        };
+        let mut app = App::new(args).expect("Failed to initialize app");
 
-//     #[test]
-//     #[should_panic(expected = "attempt to subtract with overflow")]
-//     fn handle_key_event_panic() {
-//         let mut app = App::default();
-//         let _ = app.handle_key_event(KeyCode::Left.into());
-//     }
+        app.popup.show("Test Prompt");
+        assert!(app.popup.active);
+        assert_eq!(app.popup.prompt, "Test Prompt");
 
-//     #[test]
-//     fn handle_key_event_overflow() {
-//         let mut app = App::default();
-//         assert!(app.handle_key_event(KeyCode::Right.into()).is_ok());
-//         assert!(app.handle_key_event(KeyCode::Right.into()).is_ok());
-//         assert_eq!(
-//             app.handle_key_event(KeyCode::Right.into())
-//                 .unwrap_err()
-//                 .to_string(),
-//             "counter overflow"
-//         );
-//     }
-// }
+        app.popup.hide();
+        assert!(!app.popup.active);
+    }
+
+    #[test]
+    fn test_navigation_between_fields() {
+        let args = Args {
+            file: PathBuf::from("data/test.beancount"),
+        };
+        let mut app = App::new(args).expect("Failed to initialize app");
+        let initial_field = app.currently_selected_metadata_field;
+
+        let key_event_next = KeyEvent {
+            code: KeyCode::Char('l'),
+            modifiers: KeyModifiers::CONTROL,
+            kind: KeyEventKind::Press,
+            state: KeyEventState::NONE,
+        };
+        app.handle_key_event(key_event_next)
+            .expect("Failed to handle key event");
+        assert_ne!(app.currently_selected_metadata_field, initial_field);
+
+        let key_event_prev = KeyEvent {
+            code: KeyCode::Char('h'),
+            modifiers: KeyModifiers::CONTROL,
+            kind: KeyEventKind::Press,
+            state: KeyEventState::NONE,
+        };
+        app.handle_key_event(key_event_prev)
+            .expect("Failed to handle key event");
+        assert_eq!(app.currently_selected_metadata_field, initial_field);
+
+        let key_event_down = KeyEvent {
+            code: KeyCode::Char('j'),
+            modifiers: KeyModifiers::CONTROL,
+            kind: KeyEventKind::Press,
+            state: KeyEventState::NONE,
+        };
+        app.handle_key_event(key_event_down)
+            .expect("Failed to handle key event");
+        assert!(app.focus_on_postings);
+
+        let key_event_up = KeyEvent {
+            code: KeyCode::Char('k'),
+            modifiers: KeyModifiers::CONTROL,
+            kind: KeyEventKind::Press,
+            state: KeyEventState::NONE,
+        };
+        app.handle_key_event(key_event_up)
+            .expect("Failed to handle key event");
+        assert!(!app.focus_on_postings);
+    }
+
+    #[test]
+    fn test_add_new_posting() {
+        let args = Args {
+            file: PathBuf::from("data/test.beancount"),
+        };
+        let mut app = App::new(args).expect("Failed to initialize app");
+        let initial_postings_count = app.transactions[app.current_index].postings_textareas.len();
+
+        let key_event_add = KeyEvent {
+            code: KeyCode::Char('o'),
+            modifiers: KeyModifiers::CONTROL,
+            kind: KeyEventKind::Press,
+            state: KeyEventState::NONE,
+        };
+        app.handle_key_event(key_event_add)
+            .expect("Failed to handle key event");
+        assert_eq!(
+            app.transactions[app.current_index].postings_textareas.len(),
+            initial_postings_count + 1
+        );
+    }
+
+    #[test]
+    fn test_edit_textfields() {
+        let args = Args {
+            file: PathBuf::from("data/test.beancount"),
+        };
+        let mut app = App::new(args).expect("Failed to initialize app");
+        let initial_text = "text".to_string();
+
+        let current_field = &mut app.transactions[app.current_index].metadata_textareas
+            [app.currently_selected_metadata_field];
+        current_field.insert_str(&initial_text);
+        let key_event_input = KeyEvent {
+            code: KeyCode::Char('N'),
+            modifiers: KeyModifiers::NONE,
+            kind: KeyEventKind::Press,
+            state: KeyEventState::NONE,
+        };
+        app.handle_key_event(key_event_input)
+            .expect("Failed to handle key event");
+
+        let current_field = &mut app.transactions[app.current_index].metadata_textareas
+            [app.currently_selected_metadata_field];
+        assert_ne!(current_field.lines().join(" "), initial_text);
+        assert!(current_field.lines().join(" ").contains('N'));
+    }
+}

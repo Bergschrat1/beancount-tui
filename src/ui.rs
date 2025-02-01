@@ -1,9 +1,9 @@
 use color_eyre::eyre::{OptionExt, Result};
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::{Style, Stylize},
+    style::Stylize,
     symbols::border,
-    text::{Line, Text},
+    text::Line,
     widgets::{Block, Borders, Clear, Paragraph, Wrap},
     Frame,
 };
@@ -80,7 +80,6 @@ fn draw_popup(frame: &mut Frame, app: &App, area: Rect) -> Result<()> {
         .borders(Borders::ALL);
     // .style(Style::default().bg(Color::DarkGray));
 
-    let exit_text = Text::styled(&app.popup.prompt, Style::default()).centered();
     // the `trim: false` will stop the text from being cut off when over the edge of the block
     let lines = app.popup.prompt.lines().count();
     let vertical_padding = (area.height.saturating_sub(lines as u16) / 2).max(1); // Ensure at least 1 line padding
@@ -112,7 +111,8 @@ fn draw_metadata_fields(frame: &mut Frame, app: &App, area: Rect) -> Result<()> 
     let [date_area, flag_area, payee_area, narration_area] = horizontal_layout.areas(area);
     let current_transaction = &app.transactions[app.current_index];
     let date_textarea = current_transaction
-        .metadata_textareas.first()
+        .metadata_textareas
+        .first()
         .ok_or_eyre("No date field initialized!")?;
     let flag_textarea = current_transaction
         .metadata_textareas

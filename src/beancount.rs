@@ -85,14 +85,6 @@ impl<'t> PostingTui<'t> {
             PostingField::Currency => &mut self.currency_textarea,
         }
     }
-
-    pub fn get_field(&self, field: &PostingField) -> &TextArea<'t> {
-        match field {
-            PostingField::Account => &self.account_textarea,
-            PostingField::Amount => &self.amount_textarea,
-            PostingField::Currency => &self.currency_textarea,
-        }
-    }
 }
 
 // TransactionTui
