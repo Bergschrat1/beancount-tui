@@ -1,10 +1,12 @@
 [package]
 name = "beancount-tui"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 license = "MIT"
+description = "A terminal user interface (TUI) application for viewing and editing Beancount ledger files."
+categories = ["command-line-utilities", "finance"]
+repository = "https://github.com/Bergschrat1/beancount-tui"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 beancount-parser = "2.2.1"
