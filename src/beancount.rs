@@ -56,6 +56,16 @@ impl<'t> TryFrom<Posting<Decimal>> for PostingTui<'t> {
     }
 }
 
+impl<'t> Default for PostingTui<'t> {
+    fn default() -> Self {
+        PostingTui {
+            account_textarea: create_textarea!("Account", "".to_string()),
+            amount_textarea: create_textarea!("Amount", "".to_string()),
+            currency_textarea: create_textarea!("Currency", "".to_string()),
+        }
+    }
+}
+
 impl<'t> PostingTui<'t> {
     pub fn next_field(&mut self, current_field: &PostingField, forward: bool) -> PostingField {
         match (current_field, forward) {
@@ -112,10 +122,8 @@ impl<'t> TryFrom<&Directive<Decimal>> for TransactionTui<'t> {
                 None => "*".to_string(),
             }
         );
-        let payee_textarea = create_textarea!(
-            "Payee",
-            transaction.payee.clone().unwrap_or_default()
-        );
+        let payee_textarea =
+            create_textarea!("Payee", transaction.payee.clone().unwrap_or_default());
         let narration_textarea = create_textarea!(
             "Narration",
             transaction.narration.clone().unwrap_or_default()
@@ -160,13 +168,17 @@ impl<'t> TransactionTui<'t> {
             .collect::<Vec<_>>();
 
         format!(
-            "{} {} {} {}\n{}",
+            "{} {} \"{}\" \"{}\"\n{}",
             metadata.first().unwrap_or(&"".to_string()),
             metadata.get(1).unwrap_or(&"".to_string()),
             metadata.get(2).unwrap_or(&"".to_string()),
             metadata.get(3).unwrap_or(&"".to_string()),
             postings.join("\n")
         )
+    }
+    pub fn add_posting(&mut self) {
+        let empty_posting = PostingTui::default();
+        self.postings_textareas.push(empty_posting)
     }
 }
 

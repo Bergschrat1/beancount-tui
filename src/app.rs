@@ -176,13 +176,7 @@ impl<'t> App<'t> {
                 ..
             } => self.prev_transaction()?,
             // Focus right
-            Input { key: Key::Tab, .. }
-            | Input {
-                key: Key::Right,
-                ctrl: true,
-                ..
-            }
-            | Input {
+            Input {
                 key: Key::Char('l'),
                 ctrl: true,
                 ..
@@ -195,11 +189,6 @@ impl<'t> App<'t> {
             }
             // Focus left
             Input {
-                key: Key::Left,
-                ctrl: true,
-                ..
-            }
-            | Input {
                 key: Key::Char('h'),
                 ctrl: true,
                 ..
@@ -238,6 +227,14 @@ impl<'t> App<'t> {
                         current_transaction.postings_textareas.len() - 1;
                     self.update_textareas();
                 }
+            }
+            // add new posting
+            Input {
+                key: Key::Char('o'),
+                ctrl: true,
+                ..
+            } => {
+                self.add_posting();
             }
             text_input => {
                 current_field.input(text_input);
@@ -380,6 +377,12 @@ impl<'t> App<'t> {
 
     fn exit(&mut self) {
         self.exit = true;
+    }
+
+    fn add_posting(&mut self) {
+        let current_transaction = &mut self.transactions[self.current_index];
+        current_transaction.add_posting();
+        self.update_textareas();
     }
 }
 
